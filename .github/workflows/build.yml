@@ -40,9 +40,14 @@ jobs:
           pip install -r requirements.txt -r requirements-build.txt
       - name: PyInstaller ausfuehren
         run: pyinstaller se_player.spec --noconfirm --clean
-      - name: macOS -> DMG packen
+      - name: macOS -> ad-hoc signieren & DMG packen (mit Applications-Link)
         if: runner.os == 'macOS'
-        run: hdiutil create -volname SePlayer -srcfolder dist/SePlayer.app -ov -format UDZO dist/SePlayer.dmg
+        run: |
+          codesign --force --deep --sign - dist/SePlayer.app
+          rm -rf /tmp/dmg && mkdir -p /tmp/dmg
+          cp -R dist/SePlayer.app /tmp/dmg/
+          ln -s /Applications /tmp/dmg/Applications
+          hdiutil create -volname SePlayer -srcfolder /tmp/dmg -ov -format UDZO dist/SePlayer.dmg
       - name: Linux -> Dateiname setzen
         if: runner.os == 'Linux'
         run: |

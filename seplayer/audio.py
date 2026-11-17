@@ -15,7 +15,16 @@ class PlaybackEngine:
     """
 
     def __init__(self, volume=0.7):
-        pygame.mixer.init()
+        """Initialisiert den Mixer.
+
+        Auf macOS schlägt mixer.init() fehl, solange das SDL-Video-Subsystem nicht
+        initialisiert ist ("video system not initialized") — daher Retry mit display.init().
+        """
+        try:
+            pygame.mixer.init()
+        except pygame.error:
+            pygame.display.init()
+            pygame.mixer.init()
         pygame.mixer.music.set_endevent(END_EVENT)
         self.current_path = None
         self.paused = False

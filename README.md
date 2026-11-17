@@ -34,8 +34,12 @@ Zum Starten wird **keine Python-Installation und keine PATH-Variable** gebraucht
 fertige Dateien pro System:
 
 - **Windows:** `SePlayer.exe` — Doppelklick genügt
-- **macOS:** `SePlayer.dmg` — DMG öffnen, App in den Programme-Ordner ziehen; beim ersten Start
-  evtl. Rechtsklick → „Öffnen" (die App ist nicht signiert)
+- **macOS:** `SePlayer.dmg` — DMG **einmalig** öffnen, `SePlayer.app` per Drag & Drop in den
+  Programme-Ordner (Applications-Link liegt direkt im DMG), DMG auswerfen. Danach startet man
+  SePlayer normal aus dem Programme-Ordner — die DMG wird nicht mehr gebraucht.
+  Erster Start nach dem Download: Gatekeeper meldet sich einmalig → Rechtsklick auf die App →
+  „Öffnen" (oder Systemeinstellungen → Sicherheit → „Trotzdem öffnen"). Ohne Apple-Developer-
+  Signierung (kostenpflichtig) erscheint dieser eine Hinweis immer.
 - **Linux:** `SePlayer-linux-x86_64` — `chmod +x SePlayer-linux-x86_64 && ./SePlayer-linux-x86_64`
   (braucht glibc, auf den meisten Distributionen vorhanden)
 
