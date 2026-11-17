@@ -19,16 +19,16 @@ jobs:
         include:
           - name: Windows (.exe)
             os: windows-latest
-            artifact: Mp3Player.exe
-            path: dist/Mp3Player.exe
+            artifact: SePlayer.exe
+            path: dist/SePlayer.exe
           - name: macOS (.dmg)
             os: macos-latest
-            artifact: Mp3Player.dmg
-            path: dist/Mp3Player.dmg
+            artifact: SePlayer.dmg
+            path: dist/SePlayer.dmg
           - name: Linux (x86_64)
             os: ubuntu-22.04
-            artifact: Mp3Player-linux-x86_64
-            path: dist/Mp3Player-linux-x86_64
+            artifact: SePlayer-linux-x86_64
+            path: dist/SePlayer-linux-x86_64
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -39,15 +39,15 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt -r requirements-build.txt
       - name: PyInstaller ausfuehren
-        run: pyinstaller mp3_player.spec --noconfirm --clean
+        run: pyinstaller se_player.spec --noconfirm --clean
       - name: macOS -> DMG packen
         if: runner.os == 'macOS'
-        run: hdiutil create -volname Mp3Player -srcfolder dist/Mp3Player.app -ov -format UDZO dist/Mp3Player.dmg
+        run: hdiutil create -volname SePlayer -srcfolder dist/SePlayer.app -ov -format UDZO dist/SePlayer.dmg
       - name: Linux -> Dateiname setzen
         if: runner.os == 'Linux'
         run: |
-          cp dist/Mp3Player dist/Mp3Player-linux-x86_64
-          chmod +x dist/Mp3Player-linux-x86_64
+          cp dist/SePlayer dist/SePlayer-linux-x86_64
+          chmod +x dist/SePlayer-linux-x86_64
       - name: Artefakt hochladen
         uses: actions/upload-artifact@v4
         with:

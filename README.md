@@ -1,13 +1,13 @@
-# MP3 Player
+# SePlayer
 
-Desktop-Musikplayer für **Windows, macOS und Linux** — geschrieben in Python (tkinter-GUI + pygame-Audio), dadurch plattformübergreifend und ohne externen Player (wie VLC) nutzbar.
+Desktop-Musikplayer für **Windows, macOS und Linux** — geschrieben in Python (tkinter-GUI + pygame-Audio). Als fertige Datei (exe/dmg/Linux-Binary) startbar **ohne Python-Installation**.
 
 ## Funktionen
 
 - **Folder-basierter Datei-Browser:** links ein aufklappbarer Ordner-Baum der Festplatte
   (unter Windows werden alle Laufwerke als Wurzeln angezeigt, sonst `/` und das Home-Verzeichnis)
 - **Dateiliste:** alle Audiodateien des gewählten Ordners in der Mitte, inkl. Tags
-  (Titel, Interpret, Album, Dauer, Sternebewertung, Format/Bitrate), sortierbar per Klick auf die Spaltenköpfe
+  (Titel, Interpret, Album, Sternebewertung, Dauer, Format/Bitrate), sortierbar per Klick auf die Spaltenköpfe
 - **Album-Cover:** links unten wird das Cover des ausgewählten Albums angezeigt
 - **Player-Leiste unten:** ⏮ Vorheriger, ▶/⏸ Play/Pause, ⏹ Stop, ⏭ Nächster, Fortschrittsbalken
   (klickbar zum Springen), Zeitanzeige (aktuell/gesamt), Lautstärke-Regler
@@ -28,25 +28,33 @@ Hinweis: M4A/AAC/WMA werden im Datei-Browser mit aufgeführt, können aber von S
 decodiert werden — beim Abspielen erscheint dann ein entsprechender Hinweis. Für diese Formate
 wäre ein VLC-basierter Player nötig.
 
-## Voraussetzungen
+## Fertige Programmdateien (kein Python nötig)
+
+Zum Starten wird **keine Python-Installation und keine PATH-Variable** gebraucht — es gibt
+fertige Dateien pro System:
+
+- **Windows:** `SePlayer.exe` — Doppelklick genügt
+- **macOS:** `SePlayer.dmg` — DMG öffnen, App in den Programme-Ordner ziehen; beim ersten Start
+  evtl. Rechtsklick → „Öffnen" (die App ist nicht signiert)
+- **Linux:** `SePlayer-linux-x86_64` — `chmod +x SePlayer-linux-x86_64 && ./SePlayer-linux-x86_64`
+  (braucht glibc, auf den meisten Distributionen vorhanden)
+
+Die Binaries werden bei jedem Push automatisch per **GitHub Actions** gebaut (als Artefakte des
+Workflow-Runs). Ein Tag `v...` (z. B. `git tag v1.0.0 && git push origin v1.0.0`) veröffentlicht
+zusätzlich ein **Release** mit allen drei Dateien als Download.
+
+## Entwicklung: Voraussetzungen & Start mit Python
 
 - Python 3.10 oder neuer — auf dem Mac am besten von https://www.python.org/downloads/
   (diese Installation bringt tkinter und pip mit; das macOS-System-python3 hat teils kein tkinter)
 - Ein Ausgabegerät (Soundkarte) — logisch notwendig zum Abspielen
 
-## Installation
-
 ```bash
 pip3 install -r requirements.txt    # unter Windows meist: pip
+python3 se_player.py                # unter Windows meist: python
 ```
 
-## Start
-
-```bash
-python3 mp3_player.py               # unter Windows meist: python
-```
-
-## Mac: „zsh: command not found: pip / python"
+### Mac: „zsh: command not found: pip / python"
 
 macOS bringt `python` und `pip` nicht im PATH. Lösung mit `python3` und einem virtuellen Environment:
 
@@ -54,34 +62,19 @@ macOS bringt `python` und `pip` nicht im PATH. Lösung mit `python3` und einem v
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-python mp3_player.py
+python se_player.py
 ```
 
 Falls `python3` ebenfalls fehlt: Python 3 von python.org installieren und danach ein neues
 Terminalfenster öffnen. Innerhalb des aktivierten venv funktionieren danach auch `python` und `pip`.
 
-## Fertige Programmdateien (kein Python nötig)
-
-Zum Starten wird **keine Python-Installation und keine PATH-Variable** gebraucht — es gibt
-fertige Dateien pro System:
-
-- **Windows:** `Mp3Player.exe` — Doppelklick genügt
-- **macOS:** `Mp3Player.dmg` — DMG öffnen, App in den Programme-Ordner ziehen; beim ersten Start
-  evtl. Rechtsklick → „Öffnen" (die App ist nicht signiert)
-- **Linux:** `Mp3Player-linux-x86_64` — `chmod +x Mp3Player-linux-x86_64 && ./Mp3Player-linux-x86_64`
-  (braucht glibc, auf den meisten Distributionen vorhanden)
-
-Die Binaries werden bei jedem Push automatisch per **GitHub Actions** gebaut (als Artefakte des
-Workflow-Runs). Ein Tag `v...` (z. B. `git tag v1.0.0 && git push origin v1.0.0`) veröffentlicht
-zusätzlich ein **Release** mit allen drei Dateien als Download.
-
-### Selbst bauen (auf dem jeweiligen System; Cross-Build geht nicht)
+## Selbst bauen (auf dem jeweiligen System; Cross-Build geht nicht)
 
 ```bash
 pip3 install -r requirements.txt -r requirements-build.txt
-pyinstaller mp3_player.spec --noconfirm --clean
-# Ergebnis in dist/:  Mp3Player.exe (Windows) | Mp3Player.app (macOS) | Mp3Player (Linux)
-# macOS .app -> .dmg:  hdiutil create -volname Mp3Player -srcfolder dist/Mp3Player.app -ov dist/Mp3Player.dmg
+pyinstaller se_player.spec --noconfirm --clean
+# Ergebnis in dist/:  SePlayer.exe (Windows) | SePlayer.app (macOS) | SePlayer (Linux)
+# macOS .app -> .dmg:  hdiutil create -volname SePlayer -srcfolder dist/SePlayer.app -ov dist/SePlayer.dmg
 ```
 
 ## Bedienung
@@ -94,14 +87,14 @@ pyinstaller mp3_player.spec --noconfirm --clean
 ## Projektstruktur
 
 ```
-mp3-player/
-├── mp3_player.py                # Startpunkt
-├── mp3_player.spec              # PyInstaller-Spec (fertige Binaries: exe/app/linux)
+seplayer/  (Repo)
+├── se_player.py                 # Startpunkt
+├── se_player.spec               # PyInstaller-Spec (fertige Binaries: exe/app/linux)
 ├── requirements.txt             # Laufzeit-Abhängigkeiten (pygame, mutagen, Pillow)
 ├── requirements-build.txt       # Build-Abhängigkeiten (PyInstaller)
 ├── .github/workflows/build.yml  # automatischer Binary-Build (exe / dmg / linux)
 ├── README.md
-└── mp3player/
+└── seplayer/
     ├── __init__.py
     ├── audio.py                 # Wiedergabe-Engine (pygame.mixer)
     ├── tags.py                  # Tags lesen/schreiben, Sterne (POPM/RATING), Cover

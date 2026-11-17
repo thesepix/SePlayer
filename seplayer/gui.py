@@ -51,10 +51,10 @@ def stars_text(n):
     return "★" * n + "☆" * (5 - n) if n else "–"
 
 
-class Mp3PlayerApp:
+class SePlayerApp:
     def __init__(self, root):
         self.root = root
-        root.title("MP3 Player")
+        root.title("SePlayer")
         root.geometry("1024x640")
         root.minsize(780, 500)
 
@@ -85,8 +85,8 @@ class Mp3PlayerApp:
         menubar.add_cascade(label="Datei", menu=file_menu)
         help_menu = tk.Menu(menubar, tearoff=0)
         help_menu.add_command(label="Über", command=lambda: messagebox.showinfo(
-            "Über MP3 Player",
-            "MP3 Player\n\nDesktop-Player für MP3, FLAC, OGG, WAV u. a.\n"
+            "Über SePlayer",
+            "SePlayer\n\nDesktop-Player für MP3, FLAC, OGG, WAV u. a.\n"
             "Ordner-Navigation, Tags & Sternebewertungen (POPM/RATING), Album-Cover."))
         menubar.add_cascade(label="Hilfe", menu=help_menu)
         self.root.config(menu=menubar)
@@ -470,7 +470,7 @@ class Mp3PlayerApp:
 def main():
     root = tk.Tk()
     try:
-        Mp3PlayerApp(root)
+        SePlayerApp(root)
     except Exception as exc:
         messagebox.showerror("Startfehler", f"Der Player konnte nicht gestartet werden:\n{exc}")
         root.destroy()

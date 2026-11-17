@@ -1,15 +1,15 @@
 # -*- mode: python ; coding: utf-8 -*-
-"""PyInstaller-Spec für Mp3Player.
+"""PyInstaller-Spec für SePlayer.
 
 Erzeugt eine einzelne startfähige Datei:
-  Windows: dist/Mp3Player.exe   (onefile, kein Konsolenfenster)
-  macOS:   dist/Mp3Player.app   (Bundle; per hdiutil als .dmg packbar)
-  Linux:   dist/Mp3Player       (onefile, ausführbar)
+  Windows: dist/SePlayer.exe   (onefile, kein Konsolenfenster)
+  macOS:   dist/SePlayer.app   (Bundle; per hdiutil als .dmg packbar)
+  Linux:   dist/SePlayer       (onefile, ausführbar)
 """
 import sys
 
 a = Analysis(
-    ["mp3_player.py"],
+    ["se_player.py"],
     pathex=[],
     binaries=[],
     datas=[],
@@ -32,7 +32,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name="Mp3Player",
+    name="SePlayer",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -44,7 +44,7 @@ exe = EXE(
 if sys.platform == "darwin":
     app = BUNDLE(
         exe,
-        name="Mp3Player.app",
+        name="SePlayer.app",
         icon=None,
-        bundle_identifier="com.thesepix.mp3player",
+        bundle_identifier="com.thesepix.seplayer",
     )
