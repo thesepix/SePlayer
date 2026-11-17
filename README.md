@@ -60,6 +60,30 @@ python mp3_player.py
 Falls `python3` ebenfalls fehlt: Python 3 von python.org installieren und danach ein neues
 Terminalfenster öffnen. Innerhalb des aktivierten venv funktionieren danach auch `python` und `pip`.
 
+## Fertige Programmdateien (kein Python nötig)
+
+Zum Starten wird **keine Python-Installation und keine PATH-Variable** gebraucht — es gibt
+fertige Dateien pro System:
+
+- **Windows:** `Mp3Player.exe` — Doppelklick genügt
+- **macOS:** `Mp3Player.dmg` — DMG öffnen, App in den Programme-Ordner ziehen; beim ersten Start
+  evtl. Rechtsklick → „Öffnen" (die App ist nicht signiert)
+- **Linux:** `Mp3Player-linux-x86_64` — `chmod +x Mp3Player-linux-x86_64 && ./Mp3Player-linux-x86_64`
+  (braucht glibc, auf den meisten Distributionen vorhanden)
+
+Die Binaries werden bei jedem Push automatisch per **GitHub Actions** gebaut (als Artefakte des
+Workflow-Runs). Ein Tag `v...` (z. B. `git tag v1.0.0 && git push origin v1.0.0`) veröffentlicht
+zusätzlich ein **Release** mit allen drei Dateien als Download.
+
+### Selbst bauen (auf dem jeweiligen System; Cross-Build geht nicht)
+
+```bash
+pip3 install -r requirements.txt -r requirements-build.txt
+pyinstaller mp3_player.spec --noconfirm --clean
+# Ergebnis in dist/:  Mp3Player.exe (Windows) | Mp3Player.app (macOS) | Mp3Player (Linux)
+# macOS .app -> .dmg:  hdiutil create -volname Mp3Player -srcfolder dist/Mp3Player.app -ov dist/Mp3Player.dmg
+```
+
 ## Bedienung
 
 1. Links im Ordner-Baum einen Ordner aufklappen und anklicken (oder *Datei → Ordner öffnen …*)
@@ -71,11 +95,15 @@ Terminalfenster öffnen. Innerhalb des aktivierten venv funktionieren danach auc
 
 ```
 mp3-player/
-├── mp3_player.py          # Startpunkt
-├── requirements.txt       # pygame, mutagen, Pillow
+├── mp3_player.py                # Startpunkt
+├── mp3_player.spec              # PyInstaller-Spec (fertige Binaries: exe/app/linux)
+├── requirements.txt             # Laufzeit-Abhängigkeiten (pygame, mutagen, Pillow)
+├── requirements-build.txt       # Build-Abhängigkeiten (PyInstaller)
+├── .github/workflows/build.yml  # automatischer Binary-Build (exe / dmg / linux)
+├── README.md
 └── mp3player/
     ├── __init__.py
-    ├── audio.py           # Wiedergabe-Engine (pygame.mixer)
-    ├── tags.py            # Tags lesen/schreiben, Sterne (POPM/RATING), Cover
-    └── gui.py             # tkinter-Oberfläche (Baum, Cover, Liste, Player-Leiste)
+    ├── audio.py                 # Wiedergabe-Engine (pygame.mixer)
+    ├── tags.py                  # Tags lesen/schreiben, Sterne (POPM/RATING), Cover
+    └── gui.py                   # tkinter-Oberfläche (Baum, Cover, Liste, Player-Leiste)
 ```
