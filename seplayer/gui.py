@@ -458,6 +458,26 @@ class SePlayerApp:
         if self._press_region == "heading" and self.listbox.identify_region(event.x, event.y) == "heading":
             self._sync_columns_from_display()
 
+    # ---------- Ordner-Baum: Wurzeln ----------
+
+    def _build_tree_roots(self):
+        if os.name == "nt":
+            for letter in string.ascii_uppercase:
+                drive = f"{letter}:\\"
+                if os.path.exists(drive):
+                    self._insert_dir("", drive)
+        else:
+            self._insert_dir("", os.sep)
+            home = os.path.expanduser("~")
+            if os.path.abspath(home) != os.path.abspath(os.sep):
+                self._insert_dir("", home)
+
+    def _insert_dir(self, parent, path):
+        name = os.path.basename(path.rstrip(os.sep)) or path
+        node = self.tree.insert(parent, "end", text=name, values=(path,), open=False)
+        self.tree.insert(node, "end", text="…", values=("",))
+        return node
+
     # ---------- Favoriten ----------
 
     def _refresh_favorites(self):
