@@ -297,6 +297,11 @@ class SePlayerApp:
     def play_index(self, index):
         if not 0 <= index < len(self.tracks):
             return
+        if not self.engine.available:
+            messagebox.showwarning(
+                "Kein Audio-Gerät",
+                "Die Audiowiedergabe ist nicht verfügbar — der Audio-Mixer konnte nicht initialisiert werden.")
+            return
         track = self.tracks[index]
         try:
             self.engine.load(track["path"])
@@ -319,6 +324,11 @@ class SePlayerApp:
         self._update_cover()
 
     def toggle_play(self):
+        if not self.engine.available:
+            messagebox.showwarning(
+                "Kein Audio-Gerät",
+                "Die Audiowiedergabe ist nicht verfügbar — der Audio-Mixer konnte nicht initialisiert werden.")
+            return
         if self.engine.is_playing():
             self.engine.pause()
             self.play_button.config(text="▶")

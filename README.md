@@ -33,7 +33,8 @@ wäre ein VLC-basierter Player nötig.
 Zum Starten wird **keine Python-Installation und keine PATH-Variable** gebraucht — es gibt
 fertige Dateien pro System:
 
-- **Windows:** `SePlayer.exe` — Doppelklick genügt
+- **Windows:** `SePlayer.exe` — Doppelklick genügt. Beim ersten Start meldet sich evtl. der
+  Windows-SmartScreen (App ist nicht signiert) → „Weitere Informationen" → „Trotzdem ausführen"
 - **macOS:** `SePlayer.dmg` — DMG **einmalig** öffnen, `SePlayer.app` per Drag & Drop in den
   Programme-Ordner (Applications-Link liegt direkt im DMG), DMG auswerfen. Danach startet man
   SePlayer normal aus dem Programme-Ordner — die DMG wird nicht mehr gebraucht.
