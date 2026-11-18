@@ -15,9 +15,32 @@ Desktop-Musikplayer für **Windows, macOS und Linux** — geschrieben in Python 
   Setzen/Entfernen per **Rechtsklick → „Sternebewertung setzen“**
   - MP3: ID3-`POPM`-Frame (Rating-Byte, 5 Sterne = 255)
   - FLAC/OGG: Vorbis-Comments `RATING` (0–100) und `FMPS_RATING` (0–5)
-- **Flexibles Layout:** alle Bereiche über verschiebbare Trennlinien (PanedWindow) anpassbar
+- **Flexibles Layout:** alle Bereiche über verschiebbare Trennlinien (PanedWindow) anpassbar;
+  Fenstergröße, Sash-Positionen, **letzter Ordner**, Favoriten und Spalten werden gespeichert
+  und beim nächsten Start wiederhergestellt
+- **Favoriten:** beliebige Ordner links oben anpinnen („+ pin“ bzw. *Ansicht → … pinnen*),
+  per Doppelklick direkt laden
+- **Konfigurierbare Spalten:** über *Ansicht → Spalten anpassen …* Felder ein-/ausblenden,
+  Reihenfolge per ▲/▼ ändern, Breite setzen — verfügbare Felder: Nr., Titel, Interpret, Album,
+  Bewertung, Dauer, Bitrate, Genre, Jahr, Kommentar, Größe, Format, Datei, Pfad
+- **Eigenschaften-Dialog:** Rechtsklick auf einen Titel → „Eigenschaften …“ — Reiter **Tags**
+  (Titel, Interpret, Album, Albuminterpret, Komponist, Genre, Jahr, Track, Disc, Kommentar,
+  Bewertung — alles editierbar), **Details** (Pfad, Größe, Bitrate, Samplerate, Kanäle, Dauer)
+  und **Bewertungsfelder** (welche Rating-Felder in der Datei stehen)
 - **Tastenkürzel:** Leertaste = Play/Pause, → = nächster Titel, ← = vorheriger Titel
 - Automatischer Wechsel zum nächsten Titel am Track-Ende
+
+## Bewertungsfelder (Rating)
+
+Bewertungen werden in **allen bekannten Feldern** gelesen und geschrieben:
+
+| Datei | Felder |
+|---|---|
+| MP3 (ID3) | `POPM` (POPULARIMETER — Traktor, MediaMonkey neu, Skala 0–255) und TXXX `RATING MM` (MediaMonkey alt, 0–100) |
+| FLAC/OGG | `RATING` (MediaMonkey), `RATING WMP` (Traktor), `FMPS_RATING` |
+
+Beim Lesen wird das erste gesetzte Feld verwendet (Skalen 0–5 / 0–100 / 0–255 werden automatisch
+auf 0–5 Sterne normiert), beim Schreiben werden alle Felder des Formats beschrieben.
 
 ## Unterstützte Formate
 
@@ -87,7 +110,8 @@ pyinstaller se_player.spec --noconfirm --clean
 1. Links im Ordner-Baum einen Ordner aufklappen und anklicken (oder *Datei → Ordner öffnen …*)
 2. In der Mitte per Doppelklick einen Titel starten
 3. Unten über die Player-Leiste steuern; Fortschrittsbalken ziehen = Springen im Titel
-4. Rechtsklick auf einen Titel → Sternebewertung (1–5 ★) setzen; wird in die Datei geschrieben (POPM/RATING)
+4. Rechtsklick auf einen Titel → Sternebewertung (1–5 ★) setzen oder „Eigenschaften …“ zum
+   Bearbeiten aller Tags; Bewertungen landen in allen bekannten Rating-Feldern (siehe oben)
 
 ## Projektstruktur
 
@@ -102,6 +126,9 @@ seplayer/  (Repo)
 └── seplayer/
     ├── __init__.py
     ├── audio.py                 # Wiedergabe-Engine (pygame.mixer)
-    ├── tags.py                  # Tags lesen/schreiben, Sterne (POPM/RATING), Cover
-    └── gui.py                   # tkinter-Oberfläche (Baum, Cover, Liste, Player-Leiste)
+    ├── tags.py                  # Tags lesen/schreiben, Rating-Felder (POPM, RATING MM, RATING, RATING WMP …), Cover
+    ├── state.py                 # gemerkter Zustand (state.json: Fenster, letzter Ordner, Favoriten, Spalten)
+    ├── properties.py            # Eigenschaften-Dialog (Tags/Details/Bewertungsfelder)
+    ├── util.py                  # Format-Helfer
+    └── gui.py                   # tkinter-Oberfläche (Favoriten, Baum, Cover, Liste, Player-Leiste)
 ```
