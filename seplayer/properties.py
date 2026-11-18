@@ -1,4 +1,4 @@
-"""Eigenschaften-Dialog: alle Tags eines Tracks ansehen und bearbeiten (Reiter wie bei MediaMonkey)."""
+"""Eigenschaften-Dialog: alle Tags eines oder mehrerer Tracks ansehen/bearbeiten (Reiter wie bei MediaMonkey)."""
 import tkinter as tk
 from tkinter import messagebox, ttk
 
@@ -19,11 +19,17 @@ RATING_WRITE_HINT = (
 
 
 class PropertiesDialog(tk.Toplevel):
-    def __init__(self, master, track, on_save=None):
+    """tracks: Liste der ausgewählten Tracks (Mehrfachauswahl möglich)."""
+
+    def __init__(self, master, tracks, on_save=None):
         super().__init__(master)
-        self.track = track
+        self.tracks = tracks
         self.on_save = on_save
-        self.title(f"Eigenschaften — {track['filename']}")
+        track = tracks[0]
+        if len(tracks) == 1:
+            self.title(f"Eigenschaften — {track['filename']}")
+        else:
+            self.title(f"Eigenschaften — {len(tracks)} Dateien")
         self.geometry("580x560")
         self.transient(master)
 
@@ -32,15 +38,19 @@ class PropertiesDialog(tk.Toplevel):
 
         tags_frame = ttk.Frame(notebook, padding=8)
         notebook.add(tags_frame, text="Tags")
+        if len(tracks) > 1:
+            ttk.Label(tags_frame,
+                      text=f"Änderungen werden auf alle {len(tracks)} ausgewählten Dateien angewendet.").grid(
+                row=0, column=0, columnspan=2, sticky=tk.W, pady=(0, 6))
         self.entries = {}
-        for row, (key, label) in enumerate(EDIT_FIELDS):
+        for row, (key, label) in enumerate(EDIT_FIELDS, start=1 if len(tracks) > 1 else 0):
             ttk.Label(tags_frame, text=label).grid(row=row, column=0, sticky=tk.W, pady=2)
             var = tk.StringVar(value=track.get(key, ""))
             ttk.Entry(tags_frame, textvariable=var, width=52).grid(
                 row=row, column=1, sticky=tk.EW, pady=2, padx=(8, 0))
             self.entries[key] = var
         tags_frame.columnconfigure(1, weight=1)
-        row = len(EDIT_FIELDS)
+        row = len(EDIT_FIELDS) + (1 if len(tracks) > 1 else 0)
         ttk.Label(tags_frame, text="Bewertung").grid(row=row, column=0, sticky=tk.W, pady=2)
         self.rating_var = tk.IntVar(value=int(track.get("rating", 0)))
         rating_box = ttk.Frame(tags_frame)
@@ -53,7 +63,7 @@ class PropertiesDialog(tk.Toplevel):
         details = ttk.Frame(notebook, padding=8)
         notebook.add(details, text="Details")
         info_rows = [
-            ("Datei", track["filename"]),
+            ("Datei", track["filename"] + (f"  (+ {len(tracks) - 1} weitere)" if len(tracks) > 1 else "")),
             ("Pfad", track["path"]),
             ("Größe", format_size(track.get("size", 0))),
             ("Format", track["ext"].upper()),
@@ -91,14 +101,23 @@ class PropertiesDialog(tk.Toplevel):
 
     def _save(self):
         fields = {key: var.get().strip() for key, var in self.entries.items()}
-        ok_meta = taglib.write_metadata(self.track["path"], fields)
-        ok_rating = taglib.write_rating(self.track["path"], int(self.rating_var.get()))
-        if not (ok_meta and ok_rating):
+        stars = int(self.rating_var.get())
+        failed = []
+        for track in self.tracks:
+            ok_meta = taglib.write_metadata(track["path"], fields)
+            ok_rating = taglib.write_rating(track["path"], stars)
+            if not (ok_meta and ok_rating):
+                failed.append(track["filename"])
+                continue
+            track.update(fields)
+            track["rating"] = stars
+            if self.on_save:
+                self.on_save(track)
+        if failed:
             messagebox.showerror(
-                "Fehler", "Nicht alle Felder konnten in die Datei geschrieben werden.", parent=self)
+                "Fehler",
+                f"Bei {len(failed)} Datei(en) konnten nicht alle Felder gespeichert werden:\n"
+                + "\n".join(failed[:10]),
+                parent=self)
             return
-        self.track.update(fields)
-        self.track["rating"] = int(self.rating_var.get())
-        if self.on_save:
-            self.on_save(self.track)
         self.destroy()

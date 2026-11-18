@@ -27,7 +27,16 @@ Desktop-Musikplayer für **Windows, macOS und Linux** — geschrieben in Python 
   (Titel, Interpret, Album, Albuminterpret, Komponist, Genre, Jahr, Track, Disc, Kommentar,
   Bewertung — alles editierbar), **Details** (Pfad, Größe, Bitrate, Samplerate, Kanäle, Dauer)
   und **Bewertungsfelder** (welche Rating-Felder in der Datei stehen)
-- **Tastenkürzel:** Leertaste = Play/Pause, → = nächster Titel, ← = vorheriger Titel
+- **Mehrfachauswahl:** mehrere Titel markieren (Klick, Strg+Klick, Shift+Klick) — Rechtsklick-Menü
+  (Bewertung, Eigenschaften) wirkt auf **alle** markierten Dateien, z. B. Artist eines ganzen Albums ändern
+- **Tastenkürzel:** Enter = Wiedergabe des markierten Titels starten, Leertaste = Play/Pause,
+  → = nächster Titel, ← = vorheriger Titel
+- **Spalten per Rechtsklick auf die Kopfzeile** ein-/ausblenden und per Drag verschieben
+  (Reihenfolge wird gespeichert); Felder: Nr., Titel, Interpret, Album, Bewertung, Dauer, Bitrate,
+  Genre, Jahr, Kommentar, Größe, Format, Datei, Pfad
+- **Einstellungen (Preferences):** Farbschema **Hell/Dunkel** (Dark Mode), „letzten Ordner beim Start
+  laden", Start-Lautstärke — alles in state.json gespeichert
+- **Logo** oben rechts als Overlay (verbraucht keine Nutzfläche; im Dark Mode automatisch invertiert)
 - Automatischer Wechsel zum nächsten Titel am Track-Ende
 
 ## Bewertungsfelder (Rating)
@@ -108,7 +117,7 @@ pyinstaller se_player.spec --noconfirm --clean
 ## Bedienung
 
 1. Links im Ordner-Baum einen Ordner aufklappen und anklicken (oder *Datei → Ordner öffnen …*)
-2. In der Mitte per Doppelklick einen Titel starten
+2. In der Mitte per Doppelklick oder **Enter** einen Titel starten; mehrere Titel per Strg/Shift-Klick markieren
 3. Unten über die Player-Leiste steuern; Fortschrittsbalken ziehen = Springen im Titel
 4. Rechtsklick auf einen Titel → Sternebewertung (1–5 ★) setzen oder „Eigenschaften …“ zum
    Bearbeiten aller Tags; Bewertungen landen in allen bekannten Rating-Feldern (siehe oben)
@@ -127,8 +136,11 @@ seplayer/  (Repo)
     ├── __init__.py
     ├── audio.py                 # Wiedergabe-Engine (pygame.mixer)
     ├── tags.py                  # Tags lesen/schreiben, Rating-Felder (POPM, RATING MM, RATING, RATING WMP …), Cover
-    ├── state.py                 # gemerkter Zustand (state.json: Fenster, letzter Ordner, Favoriten, Spalten)
-    ├── properties.py            # Eigenschaften-Dialog (Tags/Details/Bewertungsfelder)
+    ├── state.py                 # gemerkter Zustand (state.json: Fenster, letzter Ordner, Favoriten, Spalten, Theme)
+    ├── theme.py                 # Farbschema Hell/Dunkel
+    ├── preferences.py           # Einstellungen-Dialog
+    ├── properties.py            # Eigenschaften-Dialog (Tags/Details/Bewertungsfelder, Mehrfachauswahl)
     ├── util.py                  # Format-Helfer
+    ├── assets/logo.png          # Logo (rechts oben als Overlay)
     └── gui.py                   # tkinter-Oberfläche (Favoriten, Baum, Cover, Liste, Player-Leiste)
 ```

@@ -1,4 +1,4 @@
-"""Persistenter Zustand (Fenster, Sash-Positionen, letzter Ordner, Favoriten, Spalten).
+"""Persistenter Zustand (Fenster, Sash-Positionen, letzter Ordner, Favoriten, Spalten, Theme).
 
 Liegt als JSON im plattformüblichen Config-Verzeichnis:
   Windows: %APPDATA%/SePlayer/state.json
@@ -18,6 +18,9 @@ DEFAULT_STATE = {
     "last_folder": "",
     "favorites": [],
     "columns": [],
+    "theme": "light",
+    "autoload_last": True,
+    "volume": 70,
 }
 
 

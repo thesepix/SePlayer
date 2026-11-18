@@ -3,29 +3,34 @@
 Layout:
   links oben   -> Favoriten + Ordner-Baum (Dateisystem)
   links unten  -> Cover des ausgewählten Albums
-  Mitte        -> Audiodateien des gewählten Ordners (konfigurierbare Spalten mit Tags)
+  Mitte        -> Audiodateien des gewählten Ordners (Spalten per Rechtsklick/Drag anpassbar)
   Mitte unten  -> Player-Leiste (Play/Pause/Stop, Vor/Zurück, Fortschritt, Lautstärke)
+  rechts oben  -> Logo als Overlay (verbraucht keine Nutzfläche)
 
-Zustand (Fenstergröße, Sash-Positionen, letzter Ordner, Favoriten, Spalten) wird
-in state.json gespeichert und beim nächsten Start wiederhergestellt.
+Zustand (Fenstergröße, Sash-Positionen, letzter Ordner, Favoriten, Spalten, Theme,
+Lautstärke) wird in state.json gespeichert und beim nächsten Start wiederhergestellt.
 """
 import io
 import os
 import string
+import sys
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
 import pygame
-from PIL import Image
+from PIL import Image, ImageOps
 
 from . import state as statelib
 from . import tags as taglib
+from . import theme
 from .audio import PlaybackEngine
+from .preferences import PreferencesDialog
 from .properties import PropertiesDialog
 from .util import format_size, format_time, stars_text
 
 POLL_MS = 200
 COVER_MAX = 240
+LOGO_HEIGHT = 30
 
 FIELD_DEFS = [
     ("nr", "Nr.", 40), ("title", "Titel", 240), ("artist", "Interpret", 160),
@@ -59,6 +64,12 @@ SORT_KEYS = {
 def default_column_config():
     return [{"id": fid, "visible": fid in DEFAULT_COLUMNS, "width": w}
             for fid, _label, w in FIELD_DEFS]
+
+
+def resource_path(rel):
+    if getattr(sys, "frozen", False):
+        return os.path.join(sys._MEIPASS, rel)
+    return os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), rel)
 
 
 class ColumnDialog(tk.Toplevel):
@@ -151,7 +162,8 @@ class SePlayerApp:
         root.geometry(self._state.get("geometry") or "1100x680")
         root.minsize(860, 540)
 
-        self.engine = PlaybackEngine(volume=0.7)
+        volume = int(self._state.get("volume", 70)) / 100.0
+        self.engine = PlaybackEngine(volume=volume)
         self.folder = None
         self.tracks = []
         self.current_index = -1
@@ -160,6 +172,10 @@ class SePlayerApp:
         self._sort_reverse = False
         self._cover_cache = {}
         self._cover_photo = None
+        self._logo_img = None
+        self._logo_photo = None
+        self._press_region = ""
+        self._menus = []
 
         cols = self._state.get("columns")
         self.column_config = cols if cols else default_column_config()
@@ -170,13 +186,16 @@ class SePlayerApp:
         self._build_tree_roots()
         self._bind_events()
         self._refresh_favorites()
+        theme.apply(self.root, self._state.get("theme", "light"))
+        self._restyle_tk()
+        self._load_logo()
         self.root.after(150, self._apply_layout)
         last = self._state.get("last_folder") or ""
-        if last and os.path.isdir(last):
+        if self._state.get("autoload_last", True) and last and os.path.isdir(last):
             self.root.after(250, lambda: self._select_path_in_tree(last))
         self._tick()
 
-    # ---------- Persistenz ----------
+    # ---------- Persistenz / Theme ----------
 
     def _save_state(self):
         try:
@@ -201,20 +220,66 @@ class SePlayerApp:
         except Exception:
             pass
 
+    def _restyle_tk(self):
+        for w in (self.fav_list, self.progress, self.volume):
+            theme.style_tk_widget(w)
+        for m in self._menus:
+            theme.style_menu(m)
+
+    # ---------- Logo ----------
+
+    def _load_logo(self):
+        try:
+            path = resource_path(os.path.join("seplayer", "assets", "logo.png"))
+            if os.path.exists(path):
+                self._logo_img = Image.open(path).convert("RGBA")
+        except Exception:
+            self._logo_img = None
+        self._update_logo()
+
+    def _update_logo(self):
+        if self._logo_img is None:
+            self.logo_label.place_forget()
+            return
+        img = self._logo_img
+        if theme.CURRENT == "dark":
+            r, g, b, a = img.split()
+            img = Image.merge("RGBA", (ImageOps.invert(r), ImageOps.invert(g),
+                                        ImageOps.invert(b), a))
+        h = LOGO_HEIGHT
+        w = max(1, int(img.width * h / img.height))
+        img = img.resize((w, h), Image.LANCZOS)
+        buffer = io.BytesIO()
+        img.save(buffer, format="PNG")
+        self._logo_photo = tk.PhotoImage(data=buffer.getvalue())
+        self.logo_label.config(image=self._logo_photo)
+        self.logo_label.place(in_=self.right_frame, relx=1.0, rely=0.0, anchor="ne", x=-8, y=6)
+        try:
+            self.root.iconphoto(True, self._logo_photo)
+        except tk.TclError:
+            pass
+
     # ---------- Aufbau ----------
 
     def _build_menu(self):
         menubar = tk.Menu(self.root)
+        self._menus.append(menubar)
         file_menu = tk.Menu(menubar, tearoff=0)
+        self._menus.append(file_menu)
         file_menu.add_command(label="Ordner öffnen …", command=self._ask_folder)
         file_menu.add_separator()
         file_menu.add_command(label="Beenden", command=self._on_close)
         menubar.add_cascade(label="Datei", menu=file_menu)
         view_menu = tk.Menu(menubar, tearoff=0)
+        self._menus.append(view_menu)
         view_menu.add_command(label="Spalten anpassen …", command=self._open_column_dialog)
+        view_menu.add_command(label="Spalten zurücksetzen", command=self._reset_columns)
         view_menu.add_command(label="Aktuellen Ordner als Favorit pinnen", command=self._fav_add)
+        view_menu.add_separator()
+        view_menu.add_command(label="Einstellungen …", command=self._open_preferences)
         menubar.add_cascade(label="Ansicht", menu=view_menu)
         help_menu = tk.Menu(menubar, tearoff=0)
+        self._menus.append(help_menu)
         help_menu.add_command(label="Über", command=lambda: messagebox.showinfo(
             "Über SePlayer",
             "SePlayer\n\nDesktop-Player für MP3, FLAC, OGG, WAV u. a.\n"
@@ -261,11 +326,11 @@ class SePlayerApp:
         self.album_label.pack(fill=tk.X, padx=6, pady=(0, 6))
         self.left_pane.add(cover_frame, weight=2)
 
-        right = ttk.Frame(self.main_pane)
-        self.main_pane.add(right, weight=4)
+        self.right_frame = ttk.Frame(self.main_pane)
+        self.main_pane.add(self.right_frame, weight=4)
 
-        list_frame = ttk.LabelFrame(right, text="Dateien im Ordner")
-        self.listbox = ttk.Treeview(list_frame, show="headings", selectmode="browse")
+        list_frame = ttk.LabelFrame(self.right_frame, text="Dateien im Ordner")
+        self.listbox = ttk.Treeview(list_frame, show="headings", selectmode="extended")
         list_scroll = ttk.Scrollbar(list_frame, orient=tk.VERTICAL, command=self.listbox.yview)
         self.listbox.configure(yscrollcommand=list_scroll.set)
         self.listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
@@ -273,7 +338,9 @@ class SePlayerApp:
         list_frame.pack(fill=tk.BOTH, expand=True, padx=4, pady=(4, 2))
         self._apply_columns()
 
-        player = ttk.LabelFrame(right, text="Wiedergabe")
+        self.logo_label = ttk.Label(self.right_frame, text="")
+
+        player = ttk.LabelFrame(self.right_frame, text="Wiedergabe")
         player.pack(fill=tk.X, padx=4, pady=(2, 4))
 
         controls = ttk.Frame(player)
@@ -299,12 +366,15 @@ class SePlayerApp:
         ttk.Label(seek_row, text="🔊").pack(side=tk.LEFT, padx=(12, 2))
         self.volume = tk.Scale(seek_row, from_=100, to=0, orient=tk.HORIZONTAL, showvalue=False,
                                highlightthickness=0, bd=0, width=90, command=self._on_volume)
-        self.volume.set(70)
+        self.volume.set(int(self._state.get("volume", 70)))
         self.volume.pack(side=tk.LEFT)
+
+    # ---------- Spalten ----------
 
     def _apply_columns(self):
         visible = [c for c in self.column_config if c["visible"]]
         self.listbox["columns"] = tuple(c["id"] for c in visible)
+        self.listbox["displaycolumns"] = tuple(c["id"] for c in visible)
         for col in visible:
             fid = col["id"]
             self.listbox.heading(fid, text=FIELD_LABELS.get(fid, fid),
@@ -321,37 +391,72 @@ class SePlayerApp:
         self._apply_columns()
         self._save_state()
 
-    def _build_tree_roots(self):
-        if os.name == "nt":
-            for letter in string.ascii_uppercase:
-                drive = f"{letter}:\\"
-                if os.path.exists(drive):
-                    self._insert_dir("", drive)
-        else:
-            self._insert_dir("", os.sep)
-            home = os.path.expanduser("~")
-            if os.path.abspath(home) != os.path.abspath(os.sep):
-                self._insert_dir("", home)
+    def _reset_columns(self):
+        self.column_config = default_column_config()
+        self._apply_columns()
+        self._save_state()
 
-    def _insert_dir(self, parent, path):
-        name = os.path.basename(path.rstrip(os.sep)) or path
-        node = self.tree.insert(parent, "end", text=name, values=(path,), open=False)
-        self.tree.insert(node, "end", text="…", values=("",))
-        return node
+    def _toggle_column(self, col, visible):
+        col["visible"] = visible
+        self._apply_columns()
+        self._save_state()
+
+    def _open_column_menu(self, x_root, y_root):
+        menu = tk.Menu(self.root, tearoff=0)
+        theme.style_menu(menu)
+        for col in self.column_config:
+            var = tk.BooleanVar(value=col["visible"])
+            menu.add_checkbutton(label=FIELD_LABELS.get(col["id"], col["id"]), variable=var,
+                                 command=lambda c=col, v=var: self._toggle_column(c, v.get()))
+        menu.add_separator()
+        menu.add_command(label="Spalten anpassen …", command=self._open_column_dialog)
+        menu.add_command(label="Spalten zurücksetzen", command=self._reset_columns)
+        try:
+            menu.tk_popup(x_root, y_root)
+        finally:
+            menu.grab_release()
+
+    def _sync_columns_from_display(self):
+        """Nach dem Verschieben per Drag: Reihenfolge aus displaycolumns übernehmen."""
+        display = list(self.listbox["displaycolumns"])
+        width_by_id = {c["id"]: c["width"] for c in self.column_config}
+        visible_iter = iter(display)
+        new_config = []
+        for col in self.column_config:
+            if col["visible"]:
+                fid = next(visible_iter, col["id"])
+                new_config.append({"id": fid, "visible": True,
+                                   "width": width_by_id.get(fid, col["width"])})
+            else:
+                new_config.append(dict(col))
+        self.column_config = new_config
+        self._save_state()
+
+    # ---------- Events ----------
 
     def _bind_events(self):
         self.tree.bind("<<TreeviewOpen>>", self._on_tree_open)
         self.tree.bind("<<TreeviewSelect>>", self._on_tree_select)
         self.fav_list.bind("<Double-Button-1>", self._on_fav_select)
         self.listbox.bind("<<TreeviewSelect>>", lambda _e: self._update_cover())
-        self.listbox.bind("<Double-1>", self._on_double_click)
+        self.listbox.bind("<Double-1>", self._on_play_selected)
+        self.listbox.bind("<Return>", self._on_play_selected)
         self.listbox.bind("<Button-3>", self._on_right_click)
         self.listbox.bind("<Button-2>", self._on_right_click)  # macOS: rechte Taste = Button-2
+        self.listbox.bind("<ButtonPress-1>", self._on_list_press)
+        self.listbox.bind("<ButtonRelease-1>", self._on_list_release)
         self.progress.bind("<ButtonPress-1>", lambda _e: setattr(self, "seeking", True))
         self.progress.bind("<ButtonRelease-1>", self._on_seek_release)
         self.root.bind("<space>", lambda _e: self.toggle_play())
         self.root.bind("<Right>", lambda _e: self.play_next())
         self.root.bind("<Left>", lambda _e: self.play_previous())
+
+    def _on_list_press(self, event):
+        self._press_region = self.listbox.identify_region(event.x, event.y)
+
+    def _on_list_release(self, event):
+        if self._press_region == "heading" and self.listbox.identify_region(event.x, event.y) == "heading":
+            self._sync_columns_from_display()
 
     # ---------- Favoriten ----------
 
@@ -477,8 +582,7 @@ class SePlayerApp:
         for entry in entries:
             full = os.path.join(path, entry)
             if os.path.isfile(full) and taglib.is_audio_file(entry):
-                meta = taglib.read_metadata(full)
-                self.tracks.append(meta)
+                self.tracks.append(taglib.read_metadata(full))
         self._sort_reverse = False
         self._sort_tracks()
         self._fill_list()
@@ -530,21 +634,21 @@ class SePlayerApp:
         for i in range(len(self.tracks)):
             self.listbox.insert("", "end", iid=str(i), values=self._row_values(i))
 
+    def _selected_indices(self):
+        result = []
+        for item in self.listbox.selection():
+            try:
+                result.append(int(item))
+            except ValueError:
+                pass
+        return sorted(result)
+
     # ---------- Wiedergabe ----------
 
-    def _selected_index(self):
-        selection = self.listbox.selection()
-        if selection:
-            try:
-                return int(selection[0])
-            except ValueError:
-                return -1
-        return -1
-
-    def _on_double_click(self, _event):
-        index = self._selected_index()
-        if index >= 0:
-            self.play_index(index)
+    def _on_play_selected(self, _event):
+        indices = self._selected_indices()
+        if indices:
+            self.play_index(indices[0])
 
     def play_index(self, index):
         if not 0 <= index < len(self.tracks):
@@ -564,7 +668,8 @@ class SePlayerApp:
                 f"{track['filename']}\n\nDieses Format wird nicht unterstützt.\n({exc})")
             return
         self.current_index = index
-        self.listbox.selection_set(str(index))
+        if len(self._selected_indices()) <= 1:
+            self.listbox.selection_set(str(index))
         self.listbox.see(str(index))
         self.listbox.focus(str(index))
         self.play_button.config(text="⏸")
@@ -588,9 +693,8 @@ class SePlayerApp:
             self.engine.resume()
             self.play_button.config(text="⏸")
         elif self.tracks:
-            index = self._selected_index()
-            if index < 0:
-                index = self.current_index
+            indices = self._selected_indices()
+            index = indices[0] if indices else self.current_index
             if index < 0:
                 index = 0
             self.play_index(index)
@@ -640,9 +744,8 @@ class SePlayerApp:
     # ---------- Cover ----------
 
     def _track_for_cover(self):
-        index = self._selected_index()
-        if index < 0:
-            index = self.current_index
+        indices = self._selected_indices()
+        index = indices[0] if indices else self.current_index
         if index < 0 and self.tracks:
             index = 0
         if 0 <= index < len(self.tracks):
@@ -683,30 +786,39 @@ class SePlayerApp:
         except Exception:
             return None
 
-    # ---------- Kontextmenü / Bewertung / Eigenschaften ----------
+    # ---------- Kontextmenüs / Bewertung / Eigenschaften / Preferences ----------
 
     def _on_right_click(self, event):
+        if self.listbox.identify_region(event.x, event.y) == "heading":
+            self._open_column_menu(event.x_root, event.y_root)
+            return
         item = self.listbox.identify_row(event.y)
         if not item:
             return
-        self.listbox.selection_set(item)
+        if item not in self.listbox.selection():
+            self.listbox.selection_set(item)
+        indices = self._selected_indices()
         menu = tk.Menu(self.root, tearoff=0)
+        theme.style_menu(menu)
         rating_menu = tk.Menu(menu, tearoff=0)
+        theme.style_menu(rating_menu)
         for stars in (5, 4, 3, 2, 1, 0):
             label = stars_text(stars) if stars else "Bewertung entfernen"
             rating_menu.add_command(label=label, command=lambda s=stars: self._set_rating(s))
-        menu.add_cascade(label="Sternebewertung setzen", menu=rating_menu)
-        menu.add_command(label="Eigenschaften …", command=self._open_properties)
-        menu.add_command(label="Abspielen", command=lambda: self.play_index(self._selected_index()))
+        menu.add_cascade(label=f"Sternebewertung setzen ({len(indices)} Datei(en))", menu=rating_menu)
+        menu.add_command(label=f"Eigenschaften … ({len(indices)} Datei(en))", command=self._open_properties)
+        menu.add_command(label="Abspielen", command=self._on_play_selected)
         try:
             menu.tk_popup(event.x_root, event.y_root)
         finally:
             menu.grab_release()
 
     def _open_properties(self):
-        index = self._selected_index()
-        if 0 <= index < len(self.tracks):
-            PropertiesDialog(self.root, self.tracks[index], on_save=self._on_track_saved)
+        indices = self._selected_indices()
+        if indices:
+            tracks = [self.tracks[i] for i in indices if 0 <= i < len(self.tracks)]
+            if tracks:
+                PropertiesDialog(self.root, tracks, on_save=self._on_track_saved)
 
     def _on_track_saved(self, track):
         for i, t in enumerate(self.tracks):
@@ -717,15 +829,33 @@ class SePlayerApp:
         self._update_cover()
 
     def _set_rating(self, stars):
-        index = self._selected_index()
-        if not 0 <= index < len(self.tracks):
+        indices = self._selected_indices()
+        if not indices:
             return
-        track = self.tracks[index]
-        if taglib.write_rating(track["path"], stars):
-            track["rating"] = stars
-            self.listbox.item(str(index), values=self._row_values(index))
-        else:
-            messagebox.showerror("Fehler", "Bewertung konnte nicht in die Datei geschrieben werden.")
+        failed = []
+        for index in indices:
+            track = self.tracks[index]
+            if taglib.write_rating(track["path"], stars):
+                track["rating"] = stars
+                self.listbox.item(str(index), values=self._row_values(index))
+            else:
+                failed.append(track["filename"])
+        if failed:
+            messagebox.showerror("Fehler", "Bewertung konnte nicht geschrieben werden bei:\n"
+                                           + "\n".join(failed[:10]))
+
+    def _open_preferences(self):
+        PreferencesDialog(self.root, self._state, self._on_prefs_saved)
+
+    def _on_prefs_saved(self, prefs):
+        self._state.update(prefs)
+        theme.apply(self.root, prefs.get("theme", "light"))
+        self._restyle_tk()
+        self._update_logo()
+        volume = int(prefs.get("volume", 70))
+        self.volume.set(volume)
+        self.engine.set_volume(volume / 100.0)
+        self._save_state()
 
     # ---------- Poll-Schleife ----------
 
