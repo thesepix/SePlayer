@@ -38,6 +38,9 @@ Desktop-Musikplayer für **Windows, macOS und Linux** — geschrieben in Python 
   laden", Start-Lautstärke — alles in state.json gespeichert
 - Rechtsklick auf einen Titel → **„Im Explorer/Finder öffnen"** (Windows: Explorer mit markierter
   Datei, macOS: Finder, Linux: Dateimanager)
+- **Umbenennen/Beschreiben während der Wiedergabe** (Windows-Sperre WinError 32): die spielende Datei
+  wird für ~50 ms durch eine stille WAV ersetzt (Handle wird freigegeben), dann umbenannt/beschrieben
+  und ab letzter Position weiter abgespielt
 - **Auto-Organize (Umbenennen per Muster)** wie in MediaMonkey: Rechtsklick → „Auto-Organize: umbenennen …",
   Muster z. B. `## - artist - title` (`##` = Track-Nr. zweistellig, `#` = Track-Nr., `<feld>` oder
   Feldname als Wort = Tag-Wert, z. B. `<Artist> - <Title>`), mit Live-Vorschau und Kollisions-Schutz
@@ -71,20 +74,23 @@ wäre ein VLC-basierter Player nötig.
 Zum Starten wird **keine Python-Installation und keine PATH-Variable** gebraucht — es gibt
 fertige Dateien pro System:
 
-- **Windows:** `SePlayer.exe` — Doppelklick genügt. Beim ersten Start meldet sich evtl. der
-  Windows-SmartScreen (App ist nicht signiert) → „Weitere Informationen" → „Trotzdem ausführen"
-- **macOS:** `SePlayer.dmg` — DMG **einmalig** öffnen, `SePlayer.app` per Drag & Drop in den
+- **Windows:** `SePlayer-vX.Y.Z.exe` — Doppelklick genügt. Beim ersten Start meldet sich evtl. der
+  Windows-SmartScreen (App ist nicht signiert) → „Weitere Informationen" → „Trotzdem ausführen".
+  Die Version steht im **Dateinamen**, im **Fenstertitel** und unter *Hilfe → Über*.
+- **macOS:** `SePlayer-vX.Y.Z.dmg` — DMG **einmalig** öffnen, `SePlayer.app` per Drag & Drop in den
   Programme-Ordner (Applications-Link liegt direkt im DMG), DMG auswerfen. Danach startet man
   SePlayer normal aus dem Programme-Ordner — die DMG wird nicht mehr gebraucht.
   Erster Start nach dem Download: Gatekeeper meldet sich einmalig → Rechtsklick auf die App →
   „Öffnen" (oder Systemeinstellungen → Sicherheit → „Trotzdem öffnen"). Ohne Apple-Developer-
   Signierung (kostenpflichtig) erscheint dieser eine Hinweis immer.
-- **Linux:** `SePlayer-linux-x86_64` — `chmod +x SePlayer-linux-x86_64 && ./SePlayer-linux-x86_64`
+- **Linux:** `SePlayer-linux-vX.Y.Z` — `chmod +x SePlayer-linux-vX.Y.Z && ./SePlayer-linux-vX.Y.Z`
   (braucht glibc, auf den meisten Distributionen vorhanden)
 
 Die Binaries werden bei jedem Push automatisch per **GitHub Actions** gebaut (als Artefakte des
-Workflow-Runs). Ein Tag `v...` (z. B. `git tag v1.0.0 && git push origin v1.0.0`) veröffentlicht
-zusätzlich ein **Release** mit allen drei Dateien als Download.
+Workflow-Runs, Dateiname enthält die Version: Tag-Name `v1.3.2` bzw. `dev-<commit>`). Ein Tag `v...`
+(z. B. `git tag v1.3.2 && git push origin v1.3.2`) veröffentlicht zusätzlich ein **Release** mit allen
+drei versionierten Dateien als Download. Die Version steht außerdem in `seplayer/__init__.py`
+(`__version__`) und wird im Fenstertitel sowie unter *Hilfe → Über* angezeigt.
 
 ## Entwicklung: Voraussetzungen & Start mit Python
 
