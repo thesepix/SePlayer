@@ -43,6 +43,10 @@ FIELD_LABELS = {fid: label for fid, label, _w in FIELD_DEFS}
 DEFAULT_COLUMNS = ["nr", "title", "artist", "album", "rating", "duration", "format"]
 CENTER_ANCHOR = {"nr", "disc", "duration", "year", "rating", "bitrate", "size"}
 
+# Spalten, die per Klick direkt in der Liste editierbar sind: Spalten-id -> Tag-Feld
+EDITABLE_COLUMNS = {"nr": "track", "disc": "disc", "title": "title", "artist": "artist",
+                    "album": "album", "genre": "genre", "year": "year", "comment": "comment"}
+
 SORT_KEYS = {
     "nr": lambda t: (int(t["track"]) if t["track"].isdigit() else 999, t["title"].lower()),
     "disc": lambda t: (int(t["disc"]) if t["disc"].isdigit() else 999, t["title"].lower()),
@@ -410,10 +414,13 @@ class SePlayerApp:
         self.listbox.bind("<Button-3>", self._on_right_click)
         self.listbox.bind("<Button-2>", self._on_right_click)  # macOS: rechte Taste = Button-2
         self.listbox.bind("<ButtonPress-1>", self._on_list_press)
+        self.listbox.bind("<Button-1>", self._on_list_click, add="+")
         self.listbox.bind("<B1-Motion>", self._on_list_motion)
         self.listbox.bind("<ButtonRelease-1>", self._on_list_release)
-        self.progress.bind("<ButtonPress-1>", lambda _e: setattr(self, "seeking", True))
-        self.progress.bind("<ButtonRelease-1>", self._on_seek_release)
+        self.tree.bind("<Double-1>", self._on_tree_double)
+        self.progress.bind("<ButtonPress-1>", self._on_progress_press)
+        self.progress.bind("<B1-Motion>", self._on_progress_motion)
+        self.progress.bind("<ButtonRelease-1>", self._on_progress_release)
         self.root.bind("<space>", lambda _e: self.toggle_play())
         self.root.bind("<Right>", lambda _e: self.play_next())
         self.root.bind("<Left>", lambda _e: self.play_previous())
@@ -421,28 +428,114 @@ class SePlayerApp:
     def _on_list_press(self, event):
         self._press_region = self.listbox.identify_region(event.x, event.y)
         self._drag_anchor = None
-        if self._press_region in ("cell", "tree"):
-            row = self.listbox.identify_row(event.y)
-            if row and row.isdigit():
-                self._drag_anchor = int(row)
+        if self._press_region == "heading":
+            return
+        row = self.listbox.identify_row(event.y)
+        if row and row.isdigit():
+            self._drag_anchor = int(row)
+        elif self.tracks:
+            self._drag_anchor = len(self.tracks) - 1
 
     def _on_list_motion(self, event):
         """Mehrfachauswahl per Maus: Bereich von Anker bis aktueller Zeile markieren."""
+        self._cancel_pending_edit()
         anchor = getattr(self, "_drag_anchor", None)
-        if anchor is None:
-            return
-        if self.listbox.identify_region(event.x, event.y) not in ("cell", "tree"):
+        if anchor is None or not self.tracks:
             return
         row = self.listbox.identify_row(event.y)
-        if not row or not row.isdigit():
-            return
-        a, b = sorted((anchor, int(row)))
+        current = int(row) if (row and row.isdigit()) else len(self.tracks) - 1
+        a, b = sorted((anchor, current))
         self.listbox.selection_set(*[str(i) for i in range(a, b + 1)])
 
     def _on_list_release(self, event):
         if self._press_region == "heading" and self.listbox.identify_region(event.x, event.y) == "heading":
             self._sync_columns_from_display()
         self._drag_anchor = None
+
+    def _cancel_pending_edit(self):
+        if getattr(self, "_edit_after_id", None):
+            try:
+                self.root.after_cancel(self._edit_after_id)
+            except Exception:
+                pass
+            self._edit_after_id = None
+
+    def _on_list_click(self, event):
+        """Klick auf eine bereits markierte Zelle -> Inhalt direkt editieren (nach 400 ms)."""
+        if self.listbox.identify_region(event.x, event.y) != "cell":
+            return
+        row = self.listbox.identify_row(event.y)
+        col = self.listbox.identify_column(event.x)
+        if not row or not col or row not in self.listbox.selection():
+            return
+        ids = self._visible_column_ids()
+        try:
+            index = int(col[1:]) - 1
+        except ValueError:
+            return
+        if not 0 <= index < len(ids):
+            return
+        field = EDITABLE_COLUMNS.get(ids[index])
+        if field is None:
+            return
+        self._cancel_pending_edit()
+        self._edit_after_id = self.root.after(400, lambda: self._start_cell_edit(row, field))
+
+    def _start_cell_edit(self, row, field):
+        self._edit_after_id = None
+        try:
+            index = int(row)
+            track = self.tracks[index]
+        except (ValueError, IndexError):
+            return
+        col_id = {v: k for k, v in EDITABLE_COLUMNS.items()}.get(field)
+        bbox = self.listbox.bbox(row, col_id) if col_id else None
+        if not bbox:
+            return
+        x, y, w, h = bbox
+        editor = tk.Entry(self.listbox)
+        editor.place(x=x, y=y, width=w, height=h)
+        editor.insert(0, str(track.get(field, "")))
+        editor.select_range(0, tk.END)
+        editor.focus_set()
+        done = {"ok": False}
+
+        def commit(_event=None):
+            if done["ok"] or not editor.winfo_exists():
+                return
+            done["ok"] = True
+            value = editor.get().strip()
+            editor.destroy()
+            if value == str(track.get(field, "")):
+                return
+            if taglib.write_metadata(track["path"], {field: value}):
+                track[field] = value.split("/")[0] if field in ("track", "disc") else value
+                self.listbox.item(row, values=self._row_values(index))
+                self._update_cover()
+            else:
+                messagebox.showerror(
+                    "Fehler",
+                    f"Tag „{field}“ konnte nicht geschrieben werden:\n{taglib.last_error or 'unbekannter Fehler'}")
+
+        def cancel(_event=None):
+            if done["ok"] or not editor.winfo_exists():
+                return
+            done["ok"] = True
+            editor.destroy()
+
+        editor.bind("<Return>", commit)
+        editor.bind("<Escape>", cancel)
+        editor.bind("<FocusOut>", commit)
+
+    def _on_tree_double(self, _event):
+        """Doppelklick im Baum: Ordner frisch von Platte neu laden."""
+        selection = self.tree.selection()
+        if not selection:
+            return
+        values = self.tree.item(selection[0], "values")
+        path = values[0] if values else ""
+        if path and os.path.isdir(path):
+            self.load_folder(path)
 
     # ---------- Ordner-Baum: Wurzeln ----------
 
@@ -653,6 +746,7 @@ class SePlayerApp:
     # ---------- Wiedergabe ----------
 
     def _on_play_selected(self, _event):
+        self._cancel_pending_edit()
         indices = self._selected_indices()
         if indices:
             self.play_index(indices[0])
@@ -734,16 +828,39 @@ class SePlayerApp:
             prev = len(self.tracks) - 1
         self.play_index(prev)
 
-    def _on_seek_release(self, _event):
-        self.seeking = False
+    def _progress_fraction(self, event):
+        width = max(1, self.progress.winfo_width())
+        return min(1.0, max(0.0, event.x / width))
+
+    def _seek_to(self, fraction):
         if 0 <= self.current_index < len(self.tracks) and self.engine.current_path:
             duration = self.tracks[self.current_index]["duration"]
             if duration > 0:
                 try:
-                    self.engine.seek(self.progress.get() / 1000.0 * duration)
+                    self.engine.seek(fraction * duration)
                     self.play_button.config(text="⏸")
                 except pygame.error:
                     pass
+
+    def _on_progress_press(self, event):
+        """Klick in den Fortschrittsbalken: sofort an diese Stelle springen."""
+        self.seeking = True
+        fraction = self._progress_fraction(event)
+        self.progress.set(fraction * 1000)
+        self._seek_to(fraction)
+        return "break"
+
+    def _on_progress_motion(self, event):
+        if self.seeking:
+            self.progress.set(self._progress_fraction(event) * 1000)
+        return "break"
+
+    def _on_progress_release(self, event):
+        fraction = self._progress_fraction(event)
+        self.progress.set(fraction * 1000)
+        self._seek_to(fraction)
+        self.seeking = False
+        return "break"
 
     def _on_volume(self, value):
         self.engine.set_volume(float(value) / 100.0)
@@ -830,8 +947,12 @@ class SePlayerApp:
             AutoOrganizeDialog(self.root, tracks, on_done=self._on_organized)
 
     def _on_organized(self):
-        self._fill_list()
-        self._update_cover()
+        """Nach Auto-Organize: Ordner komplett frisch von Platte neu laden."""
+        if self.folder and os.path.isdir(self.folder):
+            self.load_folder(self.folder)
+        else:
+            self._fill_list()
+            self._update_cover()
 
     def _show_in_file_manager(self):
         """Öffnet den Dateimanager an der Stelle der ausgewählten Datei."""
@@ -911,6 +1032,12 @@ class SePlayerApp:
 
 def main():
     root = tk.Tk()
+
+    def _on_callback_error(exc, val, tb):
+        import traceback
+        messagebox.showerror("Interner Fehler", "".join(traceback.format_exception(exc, val, tb)))
+
+    root.report_callback_exception = _on_callback_error
     try:
         SePlayerApp(root)
     except Exception as exc:

@@ -21,8 +21,8 @@ Desktop-Musikplayer für **Windows, macOS und Linux** — geschrieben in Python 
 - **Favoriten:** beliebige Ordner links oben anpinnen („+ pin“ bzw. *Ansicht → … pinnen*),
   per Doppelklick direkt laden
 - **Konfigurierbare Spalten:** über *Ansicht → Spalten anpassen …* Felder ein-/ausblenden,
-  Reihenfolge per ▲/▼ ändern, Breite setzen — verfügbare Felder: Nr., Titel, Interpret, Album,
-  Bewertung, Dauer, Bitrate, Genre, Jahr, Kommentar, Größe, Format, Datei, Pfad
+  Reihenfolge per ▲/▼ ändern, Breite setzen — verfügbare Felder: Track-Nr., Disc, Titel, Interpret,
+  Album, Bewertung, Dauer, Bitrate, Genre, Jahr, Kommentar, Größe, Format, Datei, Pfad
 - **Eigenschaften-Dialog:** Rechtsklick auf einen Titel → „Eigenschaften …“ — Reiter **Tags**
   (Titel, Interpret, Album, Albuminterpret, Komponist, Genre, Jahr, Track, Disc, Kommentar,
   Bewertung — alles editierbar), **Details** (Pfad, Größe, Bitrate, Samplerate, Kanäle, Dauer)
@@ -38,6 +38,10 @@ Desktop-Musikplayer für **Windows, macOS und Linux** — geschrieben in Python 
   laden", Start-Lautstärke — alles in state.json gespeichert
 - Rechtsklick auf einen Titel → **„Im Explorer/Finder öffnen"** (Windows: Explorer mit markierter
   Datei, macOS: Finder, Linux: Dateimanager)
+- **Auto-Organize (Umbenennen per Muster)** wie in MediaMonkey: Rechtsklick → „Auto-Organize: umbenennen …",
+  Muster z. B. `## - artist - title` (`##` = Track-Nr. zweistellig, `#` = Track-Nr., `<feld>` oder
+  Feldname als Wort = Tag-Wert, z. B. `<Artist> - <Title>`), mit Live-Vorschau und Kollisions-Schutz
+- Mehrfachauswahl auch per **Maus-Ziehen** (Bereich markieren) zusätzlich zu Strg/Shift+Klick
 - **Cover-Reiter** in den Eigenschaften: Cover anzeigen, ersetzen oder entfernen
 - Automatischer Wechsel zum nächsten Titel am Track-Ende
 
@@ -141,7 +145,8 @@ seplayer/  (Repo)
     ├── state.py                 # gemerkter Zustand (state.json: Fenster, letzter Ordner, Favoriten, Spalten, Theme)
     ├── theme.py                 # Farbschema Hell/Dunkel
     ├── preferences.py           # Einstellungen-Dialog
+    ├── organize.py              # Auto-Organize: Dateien per Muster umbenennen (Vorschau)
     ├── properties.py            # Eigenschaften-Dialog (Tags/Details/Bewertungsfelder/Cover, Mehrfachauswahl)
-    ├── util.py                  # Format-Helfer
+    ├── util.py                  # Format-Helfer + Dateinamen-Muster
     └── gui.py                   # tkinter-Oberfläche (Favoriten, Baum, Cover, Liste, Player-Leiste)
 ```
