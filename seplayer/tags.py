@@ -352,13 +352,18 @@ def write_cover(path, image_bytes, mime="image/png"):
             elif "METADATA_BLOCK_PICTURE" in tags:
                 del tags["METADATA_BLOCK_PICTURE"]
             return _save_audio(audio, path)
-        from mutagen.flac import Picture
-        pic = Picture()
-        pic.type = 3
-        pic.mime = mime
-        pic.desc = "Cover"
-        pic.data = image_bytes or b""
-        audio.pictures = [pic] if image_bytes else []
+        _ensure_tags(audio)
+        if image_bytes:
+            from mutagen.flac import Picture
+            pic = Picture()
+            pic.type = 3
+            pic.mime = mime
+            pic.desc = "Cover"
+            pic.data = image_bytes
+            audio.clear_pictures()
+            audio.add_picture(pic)
+        else:
+            audio.clear_pictures()
         return _save_audio(audio, path)
     except Exception as exc:
         return _err(exc)
