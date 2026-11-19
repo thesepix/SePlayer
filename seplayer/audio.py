@@ -1,9 +1,29 @@
 """Wiedergabe-Engine auf Basis von pygame.mixer (MP3, FLAC, OGG, WAV, OPUS u. a.)."""
+import contextlib
+import io
+import os
 import time
 
 import pygame
 
 END_EVENT = pygame.USEREVENT + 1
+
+_SILENT_WAV = None
+
+
+def _silent_wav_bytes():
+    """~50 ms stille WAV (8 kHz, 8-bit, mono) als Bytes — zum kurzzeitigen Freigeben von Datei-Handles."""
+    global _SILENT_WAV
+    if _SILENT_WAV is None:
+        import wave
+        buf = io.BytesIO()
+        with wave.open(buf, "wb") as w:
+            w.setnchannels(1)
+            w.setsampwidth(1)
+            w.setframerate(8000)
+            w.writeframes(b"\x80" * 400)
+        _SILENT_WAV = buf.getvalue()
+    return _SILENT_WAV
 
 
 class PlaybackEngine:
@@ -27,6 +47,8 @@ class PlaybackEngine:
         self._playing = False
         self._offset = 0.0
         self._clock = 0.0
+        self._suppress_auto = False
+        self._silent = None
         try:
             pygame.display.init()
         except pygame.error:
@@ -106,8 +128,47 @@ class PlaybackEngine:
     def is_playing(self):
         return self.available and self._playing and not self.paused and pygame.mixer.music.get_busy()
 
+    @contextlib.contextmanager
+    def free_file(self, path):
+        """Windows-Sperre umgehen (WinError 32 beim Umbenennen/Beschreiben der spielenden Datei).
+
+        Wenn `path` gerade geladen ist: ~50 ms stille WAV abspielen (SDL gibt damit das
+        Datei-Handle frei), dann `yield` (Datei darf jetzt umbenannt/beschrieben werden),
+        danach `path` ab der letzten Position weiter abspielen. Sonst einfach durchreichen.
+        """
+        active = (self.available and self.current_path is not None
+                  and os.path.abspath(path) == os.path.abspath(self.current_path))
+        if not active:
+            yield
+            return
+        pos = self.position()
+        was_paused = self.paused
+        was_playing = self._playing
+        self._suppress_auto = True
+        try:
+            self._silent = io.BytesIO(_silent_wav_bytes())
+            pygame.mixer.music.load(self._silent)
+            pygame.mixer.music.play()
+            yield
+        finally:
+            self._suppress_auto = False
+            pygame.mixer.music.load(path)
+            self.current_path = path
+            self._offset = 0.0
+            self._playing = False
+            self.paused = False
+            if was_playing:
+                self.play(start=pos)
+                if was_paused:
+                    self._offset = pos
+                    pygame.mixer.music.pause()
+                    self.paused = True
+
     def finished(self):
         """True, wenn der geladene Track von selbst zu Ende gespielt wurde."""
+        if getattr(self, "_suppress_auto", False):
+            pygame.event.get()
+            return False
         if not self.available or not self._playing or self.paused:
             return False
         try:

@@ -1,4 +1,5 @@
 """Auto-Organize: ausgewählte Dateien per Muster aus ihren Tags umbenennen (wie MediaMonkey)."""
+import contextlib
 import os
 import tkinter as tk
 from tkinter import messagebox, ttk
@@ -9,10 +10,11 @@ DEFAULT_PATTERN = "## - artist - title"
 
 
 class AutoOrganizeDialog(tk.Toplevel):
-    def __init__(self, master, tracks, on_done=None):
+    def __init__(self, master, tracks, on_done=None, guard=None):
         super().__init__(master)
         self.tracks = tracks
         self.on_done = on_done
+        self.guard = guard or contextlib.nullcontext
         self.title(f"Auto-Organize — {len(tracks)} Datei(en) umbenennen")
         self.geometry("720x460")
         self.transient(master)
@@ -69,7 +71,8 @@ class AutoOrganizeDialog(tk.Toplevel):
                 target = os.path.join(folder, f"{base} ({n}){ext}")
                 n += 1
             try:
-                os.rename(track["path"], target)
+                with self.guard(track["path"]):
+                    os.rename(track["path"], target)
             except OSError as exc:
                 errors.append(f"{track['filename']}: {exc}")
                 continue

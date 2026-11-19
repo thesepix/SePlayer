@@ -20,6 +20,7 @@ from tkinter import filedialog, messagebox, ttk
 import pygame
 from PIL import Image
 
+from . import __version__
 from . import state as statelib
 from . import tags as taglib
 from . import theme
@@ -157,7 +158,7 @@ class SePlayerApp:
     def __init__(self, root):
         self.root = root
         self._state = statelib.load_state()
-        root.title("SePlayer")
+        root.title(f"SePlayer {__version__}")
         root.geometry(self._state.get("geometry") or "1100x680")
         root.minsize(860, 540)
 
@@ -245,7 +246,7 @@ class SePlayerApp:
         self._menus.append(help_menu)
         help_menu.add_command(label="Über", command=lambda: messagebox.showinfo(
             "Über SePlayer",
-            "SePlayer\n\nDesktop-Player für MP3, FLAC, OGG, WAV u. a.\n"
+            f"SePlayer {__version__}\n\nDesktop-Player für MP3, FLAC, OGG, WAV u. a.\n"
             "Ordner-Navigation & Favoriten, konfigurierbare Spalten, Tags bearbeiten,\n"
             "Sternebewertungen in mehreren Rating-Feldern (POPM, RATING MM, RATING, RATING WMP …), Album-Cover."))
         menubar.add_cascade(label="Hilfe", menu=help_menu)
@@ -508,7 +509,9 @@ class SePlayerApp:
             editor.destroy()
             if value == str(track.get(field, "")):
                 return
-            if taglib.write_metadata(track["path"], {field: value}):
+            with self.engine.free_file(track["path"]):
+                ok = taglib.write_metadata(track["path"], {field: value})
+            if ok:
                 track[field] = value.split("/")[0] if field in ("track", "disc") else value
                 self.listbox.item(row, values=self._row_values(index))
                 self._update_cover()
@@ -944,7 +947,8 @@ class SePlayerApp:
         indices = self._selected_indices()
         tracks = [self.tracks[i] for i in indices if 0 <= i < len(self.tracks)]
         if tracks:
-            AutoOrganizeDialog(self.root, tracks, on_done=self._on_organized)
+            AutoOrganizeDialog(self.root, tracks, on_done=self._on_organized,
+                               guard=self.engine.free_file)
 
     def _on_organized(self):
         """Nach Auto-Organize: Ordner komplett frisch von Platte neu laden."""
@@ -976,7 +980,8 @@ class SePlayerApp:
         if indices:
             tracks = [self.tracks[i] for i in indices if 0 <= i < len(self.tracks)]
             if tracks:
-                PropertiesDialog(self.root, tracks, on_save=self._on_track_saved)
+                PropertiesDialog(self.root, tracks, on_save=self._on_track_saved,
+                                 guard=self.engine.free_file)
 
     def _on_track_saved(self, track):
         for i, t in enumerate(self.tracks):
@@ -993,7 +998,9 @@ class SePlayerApp:
         failed = []
         for index in indices:
             track = self.tracks[index]
-            if taglib.write_rating(track["path"], stars):
+            with self.engine.free_file(track["path"]):
+                ok = taglib.write_rating(track["path"], stars)
+            if ok:
                 track["rating"] = stars
                 self.listbox.item(str(index), values=self._row_values(index))
             else:

@@ -1,4 +1,5 @@
 """Eigenschaften-Dialog: Tags, Details, Bewertungsfelder und Cover ansehen/bearbeiten (Reiter wie bei MediaMonkey)."""
+import contextlib
 import io
 import os
 import tkinter as tk
@@ -27,10 +28,11 @@ COVER_MAX = 256
 class PropertiesDialog(tk.Toplevel):
     """tracks: Liste der ausgewählten Tracks (Mehrfachauswahl möglich)."""
 
-    def __init__(self, master, tracks, on_save=None):
+    def __init__(self, master, tracks, on_save=None, guard=None):
         super().__init__(master)
         self.tracks = tracks
         self.on_save = on_save
+        self.guard = guard or contextlib.nullcontext
         self._cover_photo = None
         track = tracks[0]
         if len(tracks) == 1:
@@ -150,7 +152,12 @@ class PropertiesDialog(tk.Toplevel):
         ext = os.path.splitext(path)[1].lower()
         mime = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
                 ".gif": "image/gif", ".bmp": "image/bmp", ".webp": "image/webp"}.get(ext, "image/png")
-        failed = [t["filename"] for t in self.tracks if not taglib.write_cover(t["path"], data, mime)]
+        failed = []
+        for t in self.tracks:
+            with self.guard(t["path"]):
+                ok = taglib.write_cover(t["path"], data, mime)
+            if not ok:
+                failed.append(t["filename"])
         if failed:
             messagebox.showerror("Fehler", "Cover konnte nicht geschrieben werden bei:\n"
                                            + "\n".join(failed[:10])
@@ -159,7 +166,12 @@ class PropertiesDialog(tk.Toplevel):
         self._refresh_cover_tab()
 
     def _remove_cover(self):
-        failed = [t["filename"] for t in self.tracks if not taglib.remove_cover(t["path"])]
+        failed = []
+        for t in self.tracks:
+            with self.guard(t["path"]):
+                ok = taglib.remove_cover(t["path"])
+            if not ok:
+                failed.append(t["filename"])
         if failed:
             messagebox.showerror("Fehler", "Cover konnte nicht entfernt werden bei:\n"
                                            + "\n".join(failed[:10])
@@ -174,8 +186,9 @@ class PropertiesDialog(tk.Toplevel):
         stars = int(self.rating_var.get())
         failed = []
         for track in self.tracks:
-            ok_meta = taglib.write_metadata(track["path"], fields)
-            ok_rating = taglib.write_rating(track["path"], stars)
+            with self.guard(track["path"]):
+                ok_meta = taglib.write_metadata(track["path"], fields)
+                ok_rating = taglib.write_rating(track["path"], stars)
             if not (ok_meta and ok_rating):
                 failed.append(track["filename"])
                 continue
