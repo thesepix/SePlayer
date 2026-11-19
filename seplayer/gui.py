@@ -18,7 +18,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
 import pygame
-from PIL import Image, ImageOps
+from PIL import Image
 
 from . import state as statelib
 from . import tags as taglib
@@ -30,7 +30,6 @@ from .util import format_size, format_time, stars_text
 
 POLL_MS = 200
 COVER_MAX = 240
-LOGO_HEIGHT = 30
 
 FIELD_DEFS = [
     ("nr", "Nr.", 40), ("title", "Titel", 240), ("artist", "Interpret", 160),
@@ -64,12 +63,6 @@ SORT_KEYS = {
 def default_column_config():
     return [{"id": fid, "visible": fid in DEFAULT_COLUMNS, "width": w}
             for fid, _label, w in FIELD_DEFS]
-
-
-def resource_path(rel):
-    if getattr(sys, "frozen", False):
-        return os.path.join(sys._MEIPASS, rel)
-    return os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), rel)
 
 
 class ColumnDialog(tk.Toplevel):
@@ -172,8 +165,6 @@ class SePlayerApp:
         self._sort_reverse = False
         self._cover_cache = {}
         self._cover_photo = None
-        self._logo_img = None
-        self._logo_photo = None
         self._press_region = ""
         self._menus = []
 
@@ -188,7 +179,6 @@ class SePlayerApp:
         self._refresh_favorites()
         theme.apply(self.root, self._state.get("theme", "light"))
         self._restyle_tk()
-        self._load_logo()
         self.root.after(150, self._apply_layout)
         last = self._state.get("last_folder") or ""
         if self._state.get("autoload_last", True) and last and os.path.isdir(last):
@@ -225,39 +215,6 @@ class SePlayerApp:
             theme.style_tk_widget(w)
         for m in self._menus:
             theme.style_menu(m)
-
-    # ---------- Logo ----------
-
-    def _load_logo(self):
-        try:
-            path = resource_path(os.path.join("seplayer", "assets", "logo.png"))
-            if os.path.exists(path):
-                self._logo_img = Image.open(path).convert("RGBA")
-        except Exception:
-            self._logo_img = None
-        self._update_logo()
-
-    def _update_logo(self):
-        if self._logo_img is None:
-            self.logo_label.place_forget()
-            return
-        img = self._logo_img
-        if theme.CURRENT == "dark":
-            r, g, b, a = img.split()
-            img = Image.merge("RGBA", (ImageOps.invert(r), ImageOps.invert(g),
-                                        ImageOps.invert(b), a))
-        h = LOGO_HEIGHT
-        w = max(1, int(img.width * h / img.height))
-        img = img.resize((w, h), Image.LANCZOS)
-        buffer = io.BytesIO()
-        img.save(buffer, format="PNG")
-        self._logo_photo = tk.PhotoImage(data=buffer.getvalue())
-        self.logo_label.config(image=self._logo_photo)
-        self.logo_label.place(in_=self.right_frame, relx=1.0, rely=0.0, anchor="ne", x=-8, y=6)
-        try:
-            self.root.iconphoto(True, self._logo_photo)
-        except tk.TclError:
-            pass
 
     # ---------- Aufbau ----------
 
@@ -337,8 +294,6 @@ class SePlayerApp:
         list_scroll.pack(side=tk.RIGHT, fill=tk.Y)
         list_frame.pack(fill=tk.BOTH, expand=True, padx=4, pady=(4, 2))
         self._apply_columns()
-
-        self.logo_label = ttk.Label(self.right_frame, text="")
 
         player = ttk.LabelFrame(self.right_frame, text="Wiedergabe")
         player.pack(fill=tk.X, padx=4, pady=(2, 4))
@@ -827,11 +782,29 @@ class SePlayerApp:
             rating_menu.add_command(label=label, command=lambda s=stars: self._set_rating(s))
         menu.add_cascade(label=f"Sternebewertung setzen ({len(indices)} Datei(en))", menu=rating_menu)
         menu.add_command(label=f"Eigenschaften … ({len(indices)} Datei(en))", command=self._open_properties)
+        menu.add_command(label="Im Explorer/Finder öffnen", command=self._show_in_file_manager)
         menu.add_command(label="Abspielen", command=self._on_play_selected)
         try:
             menu.tk_popup(event.x_root, event.y_root)
         finally:
             menu.grab_release()
+
+    def _show_in_file_manager(self):
+        """Öffnet den Dateimanager an der Stelle der ausgewählten Datei."""
+        indices = self._selected_indices()
+        if not indices:
+            return
+        path = self.tracks[indices[0]]["path"]
+        import subprocess
+        try:
+            if sys.platform == "win32":
+                subprocess.Popen(["explorer", "/select,", os.path.abspath(path)])
+            elif sys.platform == "darwin":
+                subprocess.Popen(["open", "-R", path])
+            else:
+                subprocess.Popen(["xdg-open", os.path.dirname(os.path.abspath(path)) or "/"])
+        except Exception as exc:
+            messagebox.showerror("Fehler", f"Dateimanager konnte nicht geöffnet werden:\n{exc}")
 
     def _open_properties(self):
         indices = self._selected_indices()
@@ -871,7 +844,6 @@ class SePlayerApp:
         self._state.update(prefs)
         theme.apply(self.root, prefs.get("theme", "light"))
         self._restyle_tk()
-        self._update_logo()
         volume = int(prefs.get("volume", 70))
         self.volume.set(volume)
         self.engine.set_volume(volume / 100.0)

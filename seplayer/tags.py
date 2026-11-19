@@ -4,13 +4,17 @@ Bewertungsfelder (Rating), die gelesen UND geschrieben werden:
   MP3 (ID3):   POPM (= "POPULARIMETER", Traktor / MediaMonkey neu, Skala 0-255)
                TXXX "RATING MM" (MediaMonkey alt, Skala 0-100)
   FLAC/OGG:    RATING (MediaMonkey, 0-100), RATING WMP (Traktor), FMPS_RATING (0-5)
+
+Robustheit: letzter Fehler landet in `last_error`; Windows-Pfade > 259 Zeichen bekommen
+automatisch den \\\\?\\-Präfix; read-only-Dateien werden einmalig schreibbar gemacht.
 """
 import base64
 import os
+import stat
 
 from mutagen import File as MutagenFile
-from mutagen.id3 import (COMM, ID3, POPM, TALB, TCOM, TCON, TDRC, TIT2, TPE1,
-                         TPE2, TPOS, TRCK, TXXX)
+from mutagen.id3 import (APIC, COMM, ID3, POPM, TALB, TCOM, TCON, TDRC, TIT2,
+                         TPE1, TPE2, TPOS, TRCK, TXXX)
 
 AUDIO_EXTENSIONS = {
     ".mp3", ".flac", ".ogg", ".oga", ".wav", ".opus",
@@ -19,7 +23,6 @@ AUDIO_EXTENSIONS = {
 
 STAR_TO_POPM = {0: 0, 1: 51, 2: 102, 3: 153, 4: 204, 5: 255}
 
-# Textfelder: interne Kennung -> (ID3-Frame-Keys, Vorbis-Comment-Key)
 TEXT_FIELDS = {
     "title": (["TIT2"], "title"),
     "artist": (["TPE1"], "artist"),
@@ -39,6 +42,45 @@ ID3_FRAME_CLASS = {
 }
 
 VORBIS_RATING_FIELDS = ["RATING", "RATING WMP", "FMPS_RATING"]
+
+last_error = None
+
+
+def _err(exc):
+    global last_error
+    last_error = f"{type(exc).__name__}: {exc}"
+    return False
+
+
+def _open_path(path):
+    """Windows: Pfade > 259 Zeichen brauchen den \\\\?\\-Präfix."""
+    if os.name == "nt" and len(path) > 259:
+        return "\\\\?\\" + os.path.abspath(path)
+    return path
+
+
+def _ensure_tags(audio):
+    """Stellt sicher, dass audio.tags existiert (FLAC ohne VORBIS_COMMENT usw.)."""
+    if audio.tags is None:
+        if not hasattr(audio, "add_tags"):
+            raise RuntimeError("Datei hat keine Tag-Struktur")
+        audio.add_tags()
+    return audio.tags
+
+
+def _save_audio(audio, path):
+    try:
+        audio.save()
+        return True
+    except PermissionError:
+        try:
+            os.chmod(path, stat.S_IWRITE)
+            audio.save()
+            return True
+        except Exception as exc:
+            return _err(exc)
+    except Exception as exc:
+        return _err(exc)
 
 
 def is_audio_file(path):
@@ -87,7 +129,7 @@ def read_rating_fields(path):
     """Alle erkannten Rating-Felder der Datei als {Anzeigename: Sterne 0-5}."""
     result = {}
     try:
-        audio = MutagenFile(path)
+        audio = MutagenFile(_open_path(path))
     except Exception:
         return result
     if audio is None or audio.tags is None:
@@ -109,7 +151,7 @@ def read_rating_fields(path):
 
 
 def read_rating(path):
-    """Bewertung 0-5: erstes gesetzte Feld gemäß Priorität (MP3: POPM, RATING MM; FLAC/OGG: RATING, RATING WMP, FMPS_RATING)."""
+    """Bewertung 0-5: erstes gesetzte Feld gemäß Priorität."""
     fields = read_rating_fields(path)
     if path.lower().endswith(".mp3"):
         keys = ["POPM (POPULARIMETER)", "RATING MM"]
@@ -123,36 +165,44 @@ def read_rating(path):
 
 def write_rating(path, stars):
     """Bewertung 0-5 in ALLE bekannten Rating-Felder des Formats schreiben. True bei Erfolg."""
+    global last_error
+    last_error = None
     stars = max(0, min(5, int(stars)))
     try:
         if path.lower().endswith(".mp3"):
             try:
-                tag = ID3(path)
+                tag = ID3(_open_path(path))
             except Exception:
                 tag = ID3()
-            tag.delall("POPM")
-            tag.delall("TXXX:RATING MM")
+            try:
+                tag.delall("POPM")
+            except KeyError:
+                pass
+            try:
+                tag.delall("TXXX:RATING MM")
+            except KeyError:
+                pass
             if stars > 0:
                 tag.add(POPM(email="", rating=STAR_TO_POPM[stars], playcount=0))
                 tag.add(TXXX(encoding=3, desc="RATING MM", text=[str(stars * 20)]))
-            tag.save(path)
+            tag.save(_open_path(path))
             return True
-        audio = MutagenFile(path)
-        if audio is None or audio.tags is None:
-            return False
-        if hasattr(audio.tags, "getall"):
-            return False
+        audio = MutagenFile(_open_path(path))
+        if audio is None:
+            return _err(RuntimeError("Datei nicht lesbar"))
+        tags = _ensure_tags(audio)
+        if hasattr(tags, "getall"):
+            return _err(RuntimeError("ID3 ohne .mp3-Endung nicht unterstützt"))
         for key in VORBIS_RATING_FIELDS:
-            if key in audio.tags:
-                del audio.tags[key]
+            if key in tags:
+                del tags[key]
         if stars > 0:
-            audio.tags["RATING"] = str(stars * 20)
-            audio.tags["RATING WMP"] = str(stars * 20)
-            audio.tags["FMPS_RATING"] = str(stars)
-        audio.save()
-        return True
-    except Exception:
-        return False
+            tags["RATING"] = str(stars * 20)
+            tags["RATING WMP"] = str(stars * 20)
+            tags["FMPS_RATING"] = str(stars)
+        return _save_audio(audio, path)
+    except Exception as exc:
+        return _err(exc)
 
 
 def read_metadata(path):
@@ -171,7 +221,7 @@ def read_metadata(path):
     except OSError:
         pass
     try:
-        audio = MutagenFile(path)
+        audio = MutagenFile(_open_path(path))
     except Exception:
         audio = None
     if audio is not None:
@@ -197,11 +247,17 @@ def read_metadata(path):
 def _write_id3(tag, fields):
     for key, frame_cls in ID3_FRAME_CLASS.items():
         if key in fields:
-            tag.delall(frame_cls.__name__)
+            try:
+                tag.delall(frame_cls.__name__)
+            except KeyError:
+                pass
             if fields[key]:
                 tag.add(frame_cls(encoding=3, text=[fields[key]]))
     if "comment" in fields:
-        tag.delall("COMM")
+        try:
+            tag.delall("COMM")
+        except KeyError:
+            pass
         if fields["comment"]:
             tag.add(COMM(encoding=3, lang="eng", desc="", text=[fields["comment"]]))
 
@@ -217,33 +273,34 @@ def _write_vorbis(tags, fields):
 
 def write_metadata(path, fields):
     """Text-Tags schreiben (leerer Wert löscht das Feld). True bei Erfolg."""
+    global last_error
+    last_error = None
     try:
-        audio = MutagenFile(path)
+        audio = MutagenFile(_open_path(path))
         if audio is None:
-            return False
+            return _err(RuntimeError("Datei nicht lesbar"))
         if audio.tags is not None and hasattr(audio.tags, "getall"):
             _write_id3(audio.tags, fields)
-            audio.save()
-            return True
+            return _save_audio(audio, path)
         if path.lower().endswith(".mp3"):
             tag = ID3()
             _write_id3(tag, fields)
             audio.add_tags(tag)
-            audio.save()
-            return True
-        if audio.tags is None:
-            return False
-        _write_vorbis(audio.tags, fields)
-        audio.save()
-        return True
-    except Exception:
-        return False
+            return _save_audio(audio, path)
+        tags = _ensure_tags(audio)
+        if hasattr(tags, "getall"):
+            _write_id3(tags, fields)
+            return _save_audio(audio, path)
+        _write_vorbis(tags, fields)
+        return _save_audio(audio, path)
+    except Exception as exc:
+        return _err(exc)
 
 
 def read_cover(path):
     """Cover-Bilddaten (bytes) aus den Tags lesen, oder None wenn keines vorhanden."""
     try:
-        audio = MutagenFile(path)
+        audio = MutagenFile(_open_path(path))
     except Exception:
         return None
     if audio is None or audio.tags is None:
@@ -264,3 +321,48 @@ def read_cover(path):
         except Exception:
             return None
     return None
+
+
+def write_cover(path, image_bytes, mime="image/png"):
+    """Cover setzen (image_bytes=None entfernt das Cover). True bei Erfolg."""
+    global last_error
+    last_error = None
+    try:
+        ext = os.path.splitext(path)[1].lower()
+        if ext == ".mp3" or ext == ".wav":
+            try:
+                tag = ID3(_open_path(path))
+            except Exception:
+                tag = ID3()
+            try:
+                tag.delall("APIC")
+            except KeyError:
+                pass
+            if image_bytes:
+                tag.add(APIC(encoding=3, mime=mime, type=3, desc="Cover", data=image_bytes))
+            tag.save(_open_path(path))
+            return True
+        audio = MutagenFile(_open_path(path))
+        if audio is None:
+            return _err(RuntimeError("Datei nicht lesbar"))
+        if ext in (".ogg", ".oga"):
+            tags = _ensure_tags(audio)
+            if image_bytes:
+                tags["METADATA_BLOCK_PICTURE"] = [base64.b64encode(image_bytes).decode("ascii")]
+            elif "METADATA_BLOCK_PICTURE" in tags:
+                del tags["METADATA_BLOCK_PICTURE"]
+            return _save_audio(audio, path)
+        from mutagen.flac import Picture
+        pic = Picture()
+        pic.type = 3
+        pic.mime = mime
+        pic.desc = "Cover"
+        pic.data = image_bytes or b""
+        audio.pictures = [pic] if image_bytes else []
+        return _save_audio(audio, path)
+    except Exception as exc:
+        return _err(exc)
+
+
+def remove_cover(path):
+    return write_cover(path, None)

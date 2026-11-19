@@ -1,6 +1,10 @@
-"""Eigenschaften-Dialog: alle Tags eines oder mehrerer Tracks ansehen/bearbeiten (Reiter wie bei MediaMonkey)."""
+"""Eigenschaften-Dialog: Tags, Details, Bewertungsfelder und Cover ansehen/bearbeiten (Reiter wie bei MediaMonkey)."""
+import io
+import os
 import tkinter as tk
-from tkinter import messagebox, ttk
+from tkinter import filedialog, messagebox, ttk
+
+from PIL import Image
 
 from . import tags as taglib
 from .util import format_size, format_time, stars_text
@@ -17,6 +21,8 @@ RATING_WRITE_HINT = (
     "MP3: POPM (POPULARIMETER) + TXXX „RATING MM“  ·  FLAC/OGG: RATING, RATING WMP, FMPS_RATING"
 )
 
+COVER_MAX = 256
+
 
 class PropertiesDialog(tk.Toplevel):
     """tracks: Liste der ausgewählten Tracks (Mehrfachauswahl möglich)."""
@@ -25,12 +31,13 @@ class PropertiesDialog(tk.Toplevel):
         super().__init__(master)
         self.tracks = tracks
         self.on_save = on_save
+        self._cover_photo = None
         track = tracks[0]
         if len(tracks) == 1:
             self.title(f"Eigenschaften — {track['filename']}")
         else:
             self.title(f"Eigenschaften — {len(tracks)} Dateien")
-        self.geometry("580x560")
+        self.geometry("580x600")
         self.transient(master)
 
         notebook = ttk.Notebook(self)
@@ -93,11 +100,74 @@ class PropertiesDialog(tk.Toplevel):
         ttk.Label(rating_frame, text=RATING_WRITE_HINT, wraplength=500, justify=tk.LEFT).grid(
             row=10, column=0, columnspan=2, sticky=tk.W, pady=(14, 0))
 
+        cover_frame = ttk.Frame(notebook, padding=8)
+        notebook.add(cover_frame, text="Cover")
+        self.cover_label = ttk.Label(cover_frame, text="Kein Cover vorhanden", anchor=tk.CENTER)
+        self.cover_label.pack(pady=6)
+        cover_btns = ttk.Frame(cover_frame)
+        cover_btns.pack(pady=4)
+        ttk.Button(cover_btns, text="Cover ersetzen …", command=self._pick_cover).pack(side=tk.LEFT, padx=3)
+        ttk.Button(cover_btns, text="Cover entfernen", command=self._remove_cover).pack(side=tk.LEFT, padx=3)
+        self._refresh_cover_tab()
+
         buttons = ttk.Frame(self)
         buttons.pack(fill=tk.X, padx=6, pady=(0, 6))
         ttk.Button(buttons, text="Speichern", command=self._save).pack(side=tk.RIGHT)
         ttk.Button(buttons, text="Abbrechen", command=self.destroy).pack(side=tk.RIGHT, padx=(0, 6))
         self.grab_set()
+
+    # ---------- Cover-Reiter ----------
+
+    def _refresh_cover_tab(self):
+        data = taglib.read_cover(self.tracks[0]["path"])
+        if not data:
+            self._cover_photo = None
+            self.cover_label.config(image="", text="Kein Cover vorhanden")
+            return
+        try:
+            image = Image.open(io.BytesIO(data)).convert("RGB")
+            image.thumbnail((COVER_MAX, COVER_MAX))
+            buffer = io.BytesIO()
+            image.save(buffer, format="PNG")
+            self._cover_photo = tk.PhotoImage(data=buffer.getvalue())
+            self.cover_label.config(image=self._cover_photo, text="")
+        except Exception:
+            self._cover_photo = None
+            self.cover_label.config(image="", text="Cover konnte nicht angezeigt werden")
+
+    def _pick_cover(self):
+        path = filedialog.askopenfilename(
+            parent=self, title="Cover-Bild wählen",
+            filetypes=[("Bilder", "*.png;*.jpg;*.jpeg;*.gif;*.bmp;*.webp"), ("Alle Dateien", "*.*")])
+        if not path:
+            return
+        try:
+            with open(path, "rb") as fh:
+                data = fh.read()
+        except OSError as exc:
+            messagebox.showerror("Fehler", f"Bild nicht lesbar:\n{exc}", parent=self)
+            return
+        ext = os.path.splitext(path)[1].lower()
+        mime = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
+                ".gif": "image/gif", ".bmp": "image/bmp", ".webp": "image/webp"}.get(ext, "image/png")
+        failed = [t["filename"] for t in self.tracks if not taglib.write_cover(t["path"], data, mime)]
+        if failed:
+            messagebox.showerror("Fehler", "Cover konnte nicht geschrieben werden bei:\n"
+                                           + "\n".join(failed[:10])
+                                           + (f"\n\nLetzter Fehler: {taglib.last_error}" if taglib.last_error else ""),
+                                 parent=self)
+        self._refresh_cover_tab()
+
+    def _remove_cover(self):
+        failed = [t["filename"] for t in self.tracks if not taglib.remove_cover(t["path"])]
+        if failed:
+            messagebox.showerror("Fehler", "Cover konnte nicht entfernt werden bei:\n"
+                                           + "\n".join(failed[:10])
+                                           + (f"\n\nLetzter Fehler: {taglib.last_error}" if taglib.last_error else ""),
+                                 parent=self)
+        self._refresh_cover_tab()
+
+    # ---------- Speichern ----------
 
     def _save(self):
         fields = {key: var.get().strip() for key, var in self.entries.items()}
@@ -117,7 +187,8 @@ class PropertiesDialog(tk.Toplevel):
             messagebox.showerror(
                 "Fehler",
                 f"Bei {len(failed)} Datei(en) konnten nicht alle Felder gespeichert werden:\n"
-                + "\n".join(failed[:10]),
+                + "\n".join(failed[:10])
+                + (f"\n\nLetzter Fehler: {taglib.last_error}" if taglib.last_error else ""),
                 parent=self)
             return
         self.destroy()

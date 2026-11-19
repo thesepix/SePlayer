@@ -6,14 +6,13 @@ Erzeugt eine einzelne startfähige Datei:
   macOS:   dist/SePlayer.app   (Bundle; per hdiutil als .dmg packbar)
   Linux:   dist/SePlayer       (onefile, ausführbar)
 """
-import os
 import sys
 
 a = Analysis(
     ["se_player.py"],
     pathex=[],
     binaries=[],
-    datas=[(os.path.join("seplayer", "assets", "logo.png"), os.path.join("seplayer", "assets"))],
+    datas=[],
     hiddenimports=[
         "mutagen", "mutagen.mp3", "mutagen.flac", "mutagen.mp4",
         "mutagen.oggvorbis", "mutagen.oggopus", "mutagen.wave", "mutagen.aiff",

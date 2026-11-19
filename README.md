@@ -36,7 +36,9 @@ Desktop-Musikplayer für **Windows, macOS und Linux** — geschrieben in Python 
   Genre, Jahr, Kommentar, Größe, Format, Datei, Pfad
 - **Einstellungen (Preferences):** Farbschema **Hell/Dunkel** (Dark Mode), „letzten Ordner beim Start
   laden", Start-Lautstärke — alles in state.json gespeichert
-- **Logo** oben rechts als Overlay (verbraucht keine Nutzfläche; im Dark Mode automatisch invertiert)
+- Rechtsklick auf einen Titel → **„Im Explorer/Finder öffnen"** (Windows: Explorer mit markierter
+  Datei, macOS: Finder, Linux: Dateimanager)
+- **Cover-Reiter** in den Eigenschaften: Cover anzeigen, ersetzen oder entfernen
 - Automatischer Wechsel zum nächsten Titel am Track-Ende
 
 ## Bewertungsfelder (Rating)
@@ -139,8 +141,7 @@ seplayer/  (Repo)
     ├── state.py                 # gemerkter Zustand (state.json: Fenster, letzter Ordner, Favoriten, Spalten, Theme)
     ├── theme.py                 # Farbschema Hell/Dunkel
     ├── preferences.py           # Einstellungen-Dialog
-    ├── properties.py            # Eigenschaften-Dialog (Tags/Details/Bewertungsfelder, Mehrfachauswahl)
+    ├── properties.py            # Eigenschaften-Dialog (Tags/Details/Bewertungsfelder/Cover, Mehrfachauswahl)
     ├── util.py                  # Format-Helfer
-    ├── assets/logo.png          # Logo (rechts oben als Overlay)
     └── gui.py                   # tkinter-Oberfläche (Favoriten, Baum, Cover, Liste, Player-Leiste)
 ```
