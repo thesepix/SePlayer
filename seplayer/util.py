@@ -1,4 +1,36 @@
-"""Kleine Formatierungs-Helfer."""
+"""Kleine Formatierungs-Helfer + Dateinamen-Muster (Auto-Organize)."""
+import re
+
+PATTERN_FIELDS = ["title", "artist", "album", "albumartist", "composer",
+                  "genre", "year", "track", "disc", "comment"]
+
+
+def apply_filename_pattern(pattern, meta, fallback_index=1):
+    """Wendet ein Umbenennungs-Muster auf die Tags an.
+
+    Muster-Syntax: `##` = Tracknummer zweistellig, `#` = Tracknummer,
+    `<feld>` = Feld per spitzen Klammern (MediaMonkey-Stil), außerdem werden
+    Feldnamen als ganze Wörter ersetzt (z. B. `## - artist - title`).
+    Ungültige Dateizeichen (\\/:*?"<>|) werden durch "-" ersetzt.
+    """
+    track = str(meta.get("track") or fallback_index)
+    result = pattern.replace("##", track.zfill(2))
+    result = result.replace("#", track)
+
+    def angle(match):
+        key = match.group(1).strip().lower()
+        value = meta.get(key, "")
+        return str(value) if value else match.group(0)
+
+    result = re.sub(r"<([^<>]+)>", angle, result)
+    for key in PATTERN_FIELDS:
+        value = meta.get(key, "")
+        if value:
+            result = re.sub(r"\b" + re.escape(key) + r"\b", str(value), result,
+                            flags=re.IGNORECASE)
+    result = re.sub(r'[\\/:*?"<>|]', "-", result)
+    result = re.sub(r"\s+", " ", result).strip(" .")
+    return result
 
 
 def format_time(seconds):

@@ -24,6 +24,7 @@ from . import state as statelib
 from . import tags as taglib
 from . import theme
 from .audio import PlaybackEngine
+from .organize import AutoOrganizeDialog
 from .preferences import PreferencesDialog
 from .properties import PropertiesDialog
 from .util import format_size, format_time, stars_text
@@ -32,18 +33,19 @@ POLL_MS = 200
 COVER_MAX = 240
 
 FIELD_DEFS = [
-    ("nr", "Nr.", 40), ("title", "Titel", 240), ("artist", "Interpret", 160),
-    ("album", "Album", 160), ("rating", "Bewertung", 90), ("duration", "Dauer", 60),
-    ("bitrate", "Bitrate", 80), ("genre", "Genre", 110), ("year", "Jahr", 50),
-    ("comment", "Kommentar", 170), ("size", "Größe", 80), ("format", "Format", 110),
-    ("filename", "Datei", 200), ("path", "Pfad", 260),
+    ("nr", "Track-Nr.", 60), ("disc", "Disc", 45), ("title", "Titel", 240),
+    ("artist", "Interpret", 160), ("album", "Album", 160), ("rating", "Bewertung", 90),
+    ("duration", "Dauer", 60), ("bitrate", "Bitrate", 80), ("genre", "Genre", 110),
+    ("year", "Jahr", 50), ("comment", "Kommentar", 170), ("size", "Größe", 80),
+    ("format", "Format", 110), ("filename", "Datei", 200), ("path", "Pfad", 260),
 ]
 FIELD_LABELS = {fid: label for fid, label, _w in FIELD_DEFS}
 DEFAULT_COLUMNS = ["nr", "title", "artist", "album", "rating", "duration", "format"]
-CENTER_ANCHOR = {"nr", "duration", "year", "rating", "bitrate", "size"}
+CENTER_ANCHOR = {"nr", "disc", "duration", "year", "rating", "bitrate", "size"}
 
 SORT_KEYS = {
     "nr": lambda t: (int(t["track"]) if t["track"].isdigit() else 999, t["title"].lower()),
+    "disc": lambda t: (int(t["disc"]) if t["disc"].isdigit() else 999, t["title"].lower()),
     "title": lambda t: t["title"].lower(),
     "artist": lambda t: t["artist"].lower(),
     "album": lambda t: t["album"].lower(),
@@ -328,8 +330,17 @@ class SePlayerApp:
 
     def _apply_columns(self):
         visible = [c for c in self.column_config if c["visible"]]
-        self.listbox["columns"] = tuple(c["id"] for c in visible)
-        self.listbox["displaycolumns"] = tuple(c["id"] for c in visible)
+        if not visible:
+            for c in self.column_config:
+                if c["id"] == "title":
+                    c["visible"] = True
+            visible = [c for c in self.column_config if c["visible"]]
+        ids = tuple(c["id"] for c in visible)
+        # displaycolumns zuerst leeren, sonst TclError wenn eine versteckte Spalte
+        # noch in displaycolumns steht (das hat die Spalten "kaputt" gemacht)
+        self.listbox["displaycolumns"] = ()
+        self.listbox["columns"] = ids
+        self.listbox["displaycolumns"] = ids
         for col in visible:
             fid = col["id"]
             self.listbox.heading(fid, text=FIELD_LABELS.get(fid, fid),
@@ -399,6 +410,7 @@ class SePlayerApp:
         self.listbox.bind("<Button-3>", self._on_right_click)
         self.listbox.bind("<Button-2>", self._on_right_click)  # macOS: rechte Taste = Button-2
         self.listbox.bind("<ButtonPress-1>", self._on_list_press)
+        self.listbox.bind("<B1-Motion>", self._on_list_motion)
         self.listbox.bind("<ButtonRelease-1>", self._on_list_release)
         self.progress.bind("<ButtonPress-1>", lambda _e: setattr(self, "seeking", True))
         self.progress.bind("<ButtonRelease-1>", self._on_seek_release)
@@ -408,10 +420,29 @@ class SePlayerApp:
 
     def _on_list_press(self, event):
         self._press_region = self.listbox.identify_region(event.x, event.y)
+        self._drag_anchor = None
+        if self._press_region in ("cell", "tree"):
+            row = self.listbox.identify_row(event.y)
+            if row and row.isdigit():
+                self._drag_anchor = int(row)
+
+    def _on_list_motion(self, event):
+        """Mehrfachauswahl per Maus: Bereich von Anker bis aktueller Zeile markieren."""
+        anchor = getattr(self, "_drag_anchor", None)
+        if anchor is None:
+            return
+        if self.listbox.identify_region(event.x, event.y) not in ("cell", "tree"):
+            return
+        row = self.listbox.identify_row(event.y)
+        if not row or not row.isdigit():
+            return
+        a, b = sorted((anchor, int(row)))
+        self.listbox.selection_set(*[str(i) for i in range(a, b + 1)])
 
     def _on_list_release(self, event):
         if self._press_region == "heading" and self.listbox.identify_region(event.x, event.y) == "heading":
             self._sync_columns_from_display()
+        self._drag_anchor = None
 
     # ---------- Ordner-Baum: Wurzeln ----------
 
@@ -585,6 +616,7 @@ class SePlayerApp:
         t = self.tracks[index]
         return {
             "nr": t["track"] or str(index + 1),
+            "disc": t["disc"],
             "title": t["title"],
             "artist": t["artist"],
             "album": t["album"],
@@ -782,12 +814,24 @@ class SePlayerApp:
             rating_menu.add_command(label=label, command=lambda s=stars: self._set_rating(s))
         menu.add_cascade(label=f"Sternebewertung setzen ({len(indices)} Datei(en))", menu=rating_menu)
         menu.add_command(label=f"Eigenschaften … ({len(indices)} Datei(en))", command=self._open_properties)
+        menu.add_command(label=f"Auto-Organize: umbenennen … ({len(indices)} Datei(en))",
+                         command=self._open_auto_organize)
         menu.add_command(label="Im Explorer/Finder öffnen", command=self._show_in_file_manager)
         menu.add_command(label="Abspielen", command=self._on_play_selected)
         try:
             menu.tk_popup(event.x_root, event.y_root)
         finally:
             menu.grab_release()
+
+    def _open_auto_organize(self):
+        indices = self._selected_indices()
+        tracks = [self.tracks[i] for i in indices if 0 <= i < len(self.tracks)]
+        if tracks:
+            AutoOrganizeDialog(self.root, tracks, on_done=self._on_organized)
+
+    def _on_organized(self):
+        self._fill_list()
+        self._update_cover()
 
     def _show_in_file_manager(self):
         """Öffnet den Dateimanager an der Stelle der ausgewählten Datei."""
