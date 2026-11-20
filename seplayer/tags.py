@@ -151,13 +151,9 @@ def read_rating_fields(path):
 
 
 def read_rating(path):
-    """Bewertung 0-5: erstes gesetzte Feld gemäß Priorität."""
+    """Bewertung 0-5: erstes gesetzte Feld gemäß Priorität (ID3: POPM, RATING MM; Vorbis: RATING, RATING WMP, FMPS_RATING)."""
     fields = read_rating_fields(path)
-    if path.lower().endswith(".mp3"):
-        keys = ["POPM (POPULARIMETER)", "RATING MM"]
-    else:
-        keys = VORBIS_RATING_FIELDS
-    for key in keys:
+    for key in ("POPM (POPULARIMETER)", "RATING MM") + tuple(VORBIS_RATING_FIELDS):
         if fields.get(key):
             return fields[key]
     return 0
