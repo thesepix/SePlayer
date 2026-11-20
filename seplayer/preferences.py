@@ -2,10 +2,13 @@
 import tkinter as tk
 from tkinter import ttk
 
+from . import theme
+
 
 class PreferencesDialog(tk.Toplevel):
     def __init__(self, master, state, on_save):
         super().__init__(master)
+        theme.style_toplevel(self)
         self.title("Einstellungen")
         self.geometry("420x240")
         self.transient(master)

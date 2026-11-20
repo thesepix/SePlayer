@@ -4,6 +4,7 @@ import os
 import tkinter as tk
 from tkinter import messagebox, ttk
 
+from . import theme
 from .util import apply_filename_pattern
 
 DEFAULT_PATTERN = "## - artist - title"
@@ -12,6 +13,7 @@ DEFAULT_PATTERN = "## - artist - title"
 class AutoOrganizeDialog(tk.Toplevel):
     def __init__(self, master, tracks, on_done=None, guard=None):
         super().__init__(master)
+        theme.style_toplevel(self)
         self.tracks = tracks
         self.on_done = on_done
         self.guard = guard or contextlib.nullcontext
@@ -30,6 +32,7 @@ class AutoOrganizeDialog(tk.Toplevel):
                   ).pack(side=tk.LEFT, padx=6)
 
         self.preview = tk.Listbox(self, font=("TkDefaultFont", 9))
+        theme.style_tk_widget(self.preview)
         self.preview.pack(fill=tk.BOTH, expand=True, padx=8, pady=4)
 
         buttons = ttk.Frame(self)

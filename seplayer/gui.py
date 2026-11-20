@@ -77,6 +77,7 @@ class ColumnDialog(tk.Toplevel):
 
     def __init__(self, master, config, on_ok):
         super().__init__(master)
+        theme.style_toplevel(self)
         self.title("Spalten anpassen")
         self.geometry("420x420")
         self.transient(master)
@@ -305,6 +306,12 @@ class SePlayerApp:
         player = ttk.LabelFrame(self.right_frame, text="Wiedergabe")
         player.pack(fill=tk.X, padx=4, pady=(2, 4))
 
+        # Lautstaerke: vertikal, oben = lauter (from_=100 oben, to_=0 unten)
+        self.volume = tk.Scale(player, from_=100, to=0, orient=tk.VERTICAL, showvalue=False,
+                               highlightthickness=0, bd=0, length=72, command=self._on_volume)
+        self.volume.set(int(self._state.get("volume", 70)))
+        self.volume.pack(side=tk.RIGHT, fill=tk.Y, padx=(2, 4))
+
         controls = ttk.Frame(player)
         controls.pack(fill=tk.X, padx=6, pady=4)
         ttk.Button(controls, text="⏮", width=3, command=self.play_previous).pack(side=tk.LEFT)
@@ -325,11 +332,7 @@ class SePlayerApp:
         self.progress.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=6)
         self.time_total = ttk.Label(seek_row, text="00:00", width=6)
         self.time_total.pack(side=tk.LEFT)
-        ttk.Label(seek_row, text="🔊").pack(side=tk.LEFT, padx=(12, 2))
-        self.volume = tk.Scale(seek_row, from_=100, to=0, orient=tk.HORIZONTAL, showvalue=False,
-                               highlightthickness=0, bd=0, width=90, command=self._on_volume)
-        self.volume.set(int(self._state.get("volume", 70)))
-        self.volume.pack(side=tk.LEFT)
+        ttk.Label(seek_row, text="🔊").pack(side=tk.RIGHT, padx=(12, 2))
 
     # ---------- Spalten ----------
 
@@ -408,7 +411,7 @@ class SePlayerApp:
     def _bind_events(self):
         self.tree.bind("<<TreeviewOpen>>", self._on_tree_open)
         self.tree.bind("<<TreeviewSelect>>", self._on_tree_select)
-        self.fav_list.bind("<Double-Button-1>", self._on_fav_select)
+        self.fav_list.bind("<ButtonRelease-1>", self._on_fav_select)
         self.listbox.bind("<<TreeviewSelect>>", lambda _e: self._update_cover())
         self.listbox.bind("<Double-1>", self._on_play_selected)
         self.listbox.bind("<Return>", self._on_play_selected)
@@ -495,6 +498,7 @@ class SePlayerApp:
             return
         x, y, w, h = bbox
         editor = tk.Entry(self.listbox)
+        theme.style_tk_widget(editor)
         editor.place(x=x, y=y, width=w, height=h)
         editor.insert(0, str(track.get(field, "")))
         editor.select_range(0, tk.END)
@@ -587,6 +591,11 @@ class SePlayerApp:
             if os.path.isdir(path):
                 self.load_folder(path)
                 self._select_path_in_tree(path)
+            else:
+                messagebox.showwarning("Favorit", f"Ordner existiert nicht mehr:\n{path}")
+                del self.favorites[sel[0]]
+                self._refresh_favorites()
+                self._save_state()
 
     # ---------- Ordner-Baum ----------
 

@@ -8,6 +8,7 @@ from tkinter import filedialog, messagebox, ttk
 from PIL import Image
 
 from . import tags as taglib
+from . import theme
 from .util import format_size, format_time, stars_text
 
 EDIT_FIELDS = [
@@ -30,6 +31,7 @@ class PropertiesDialog(tk.Toplevel):
 
     def __init__(self, master, tracks, on_save=None, guard=None):
         super().__init__(master)
+        theme.style_toplevel(self)
         self.tracks = tracks
         self.on_save = on_save
         self.guard = guard or contextlib.nullcontext

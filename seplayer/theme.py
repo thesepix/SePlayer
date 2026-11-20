@@ -1,4 +1,5 @@
 """Farbschema (Hell/Dunkel) für die GUI. Wird in state.json persistiert."""
+import sys
 import tkinter as tk
 from tkinter import ttk
 
@@ -20,6 +21,20 @@ CURRENT = "light"
 
 def palette():
     return PALETTES[CURRENT]
+
+
+def _dark_titlebar_windows(root):
+    """Windows 10/11: Titelleiste im Dark Mode dunkel färben (DWM)."""
+    if sys.platform != "win32" or CURRENT != "dark":
+        return
+    try:
+        import ctypes
+        hwnd = int(root.wm_frame(), 16)
+        value = ctypes.c_int(1)
+        ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, 20, ctypes.byref(value),
+                                                    ctypes.sizeof(value))
+    except Exception:
+        pass
 
 
 def apply(root, name="light"):
@@ -59,10 +74,15 @@ def apply(root, name="light"):
     style.configure("TSpinbox", fieldbackground=p["field_bg"], foreground=p["fg"])
     style.configure("TCombobox", fieldbackground=p["field_bg"], foreground=p["fg"])
     style.configure("TScale", background=p["bg"], troughcolor=p["trough"])
+    for orient in ("Vertical", "Horizontal"):
+        style.configure(f"{orient}.TScrollbar", background=p["heading_bg"],
+                        troughcolor=p["trough"], arrowcolor=p["fg"], bordercolor=p["border"])
+        style.map(f"{orient}.TScrollbar", background=[("active", p["select_bg"])])
+    _dark_titlebar_windows(root)
 
 
 def style_tk_widget(w):
-    """Färbt ein klassisches tk-Widget (Listbox, Scale …) passend ein."""
+    """Färbt ein klassisches tk-Widget (Listbox, Scale, Entry …) passend ein."""
     p = palette()
     try:
         w.configure(bg=p["bg"], fg=p["fg"], selectbackground=p["select_bg"],
@@ -77,5 +97,13 @@ def style_menu(m):
     try:
         m.configure(bg=p["field_bg"], fg=p["fg"], activebackground=p["select_bg"],
                     activeforeground=p["select_fg"])
+    except tk.TclError:
+        pass
+
+
+def style_toplevel(top):
+    """Hintergrund eines Dialog-Fensters (Toplevel) passend einfärben."""
+    try:
+        top.configure(bg=palette()["bg"])
     except tk.TclError:
         pass
