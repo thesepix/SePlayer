@@ -164,7 +164,12 @@ def read_rating(path):
 
 
 def write_rating(path, stars):
-    """Bewertung 0-5 in ALLE bekannten Rating-Felder des Formats schreiben. True bei Erfolg."""
+    """Bewertung 0-5 in ALLE bekannten Rating-Felder des Formats schreiben. True bei Erfolg.
+
+    MP3: ID3 (POPM + TXXX RATING MM) — direkt via ID3, damit auch tag-lose MP3s gehen.
+    WAV/AIFF (ID3-in-RIFF, z. B. von MediaMonkey beschrieben): ebenfalls POPM + RATING MM.
+    FLAC/OGG: Vorbis-Comments RATING, RATING WMP, FMPS_RATING.
+    """
     global last_error
     last_error = None
     stars = max(0, min(5, int(stars)))
@@ -192,7 +197,19 @@ def write_rating(path, stars):
             return _err(RuntimeError("Datei nicht lesbar"))
         tags = _ensure_tags(audio)
         if hasattr(tags, "getall"):
-            return _err(RuntimeError("ID3 ohne .mp3-Endung nicht unterstützt"))
+            # WAV/AIFF mit ID3
+            try:
+                tags.delall("POPM")
+            except KeyError:
+                pass
+            try:
+                tags.delall("TXXX:RATING MM")
+            except KeyError:
+                pass
+            if stars > 0:
+                tags.add(POPM(email="", rating=STAR_TO_POPM[stars], playcount=0))
+                tags.add(TXXX(encoding=3, desc="RATING MM", text=[str(stars * 20)]))
+            return _save_audio(audio, path)
         for key in VORBIS_RATING_FIELDS:
             if key in tags:
                 del tags[key]

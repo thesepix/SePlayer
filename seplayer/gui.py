@@ -265,6 +265,7 @@ class SePlayerApp:
 
         fav_frame = ttk.LabelFrame(self.left_pane, text="Favoriten")
         self.fav_list = tk.Listbox(fav_frame, height=4, activestyle="dotbox")
+        theme.style_tk_widget(self.fav_list)
         fav_scroll = ttk.Scrollbar(fav_frame, orient=tk.VERTICAL, command=self.fav_list.yview)
         self.fav_list.configure(yscrollcommand=fav_scroll.set)
         self.fav_list.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
@@ -283,13 +284,18 @@ class SePlayerApp:
         tree_scroll.pack(side=tk.RIGHT, fill=tk.Y)
         self.left_pane.add(tree_frame, weight=3)
 
-        cover_frame = ttk.LabelFrame(self.left_pane, text="Album-Cover")
+        # Cover-Bereich fixiert (feste Höhe, nicht per Sash verschiebbar)
+        cover_outer = ttk.Frame(left)
+        cover_outer.pack(side=tk.BOTTOM, fill=tk.X)
+        cover_outer.pack_propagate(False)
+        cover_outer.configure(height=260)
+        cover_frame = ttk.LabelFrame(cover_outer, text="Album-Cover")
+        cover_frame.pack(fill=tk.BOTH, expand=True)
         self.cover_label = ttk.Label(cover_frame, text="Kein Album ausgewählt", anchor=tk.CENTER)
         self.cover_label.pack(fill=tk.BOTH, expand=True, padx=6, pady=(6, 2))
         self.album_label = ttk.Label(cover_frame, text="", anchor=tk.CENTER,
                                      justify=tk.CENTER, wraplength=260)
         self.album_label.pack(fill=tk.X, padx=6, pady=(0, 6))
-        self.left_pane.add(cover_frame, weight=2)
 
         self.right_frame = ttk.Frame(self.main_pane)
         self.main_pane.add(self.right_frame, weight=4)
@@ -302,6 +308,7 @@ class SePlayerApp:
         list_scroll.pack(side=tk.RIGHT, fill=tk.Y)
         list_frame.pack(fill=tk.BOTH, expand=True, padx=4, pady=(4, 2))
         self._apply_columns()
+        self.listbox.tag_configure("playing", foreground="#e08600")
 
         player = ttk.LabelFrame(self.right_frame, text="Wiedergabe")
         player.pack(fill=tk.X, padx=4, pady=(2, 4))
@@ -415,6 +422,7 @@ class SePlayerApp:
         self.listbox.bind("<<TreeviewSelect>>", lambda _e: self._update_cover())
         self.listbox.bind("<Double-1>", self._on_play_selected)
         self.listbox.bind("<Return>", self._on_play_selected)
+        self.listbox.bind("<Control-a>", self._on_select_all)
         self.listbox.bind("<Button-3>", self._on_right_click)
         self.listbox.bind("<Button-2>", self._on_right_click)  # macOS: rechte Taste = Button-2
         self.listbox.bind("<ButtonPress-1>", self._on_list_press)
@@ -745,6 +753,20 @@ class SePlayerApp:
         self.listbox.delete(*self.listbox.get_children())
         for i in range(len(self.tracks)):
             self.listbox.insert("", "end", iid=str(i), values=self._row_values(i))
+        self._mark_playing()
+
+    def _on_select_all(self, _event):
+        """Strg+A: alle Titel im aktuellen Ordner markieren."""
+        self.listbox.selection_set(*self.listbox.get_children())
+        return "break"
+
+    def _mark_playing(self):
+        """Markiert die Zeile des gerade spielenden Titels (orange)."""
+        for i in range(len(self.tracks)):
+            tags = [t for t in self.listbox.item(str(i), "tags") if t != "playing"]
+            if i == self.current_index and (self.engine.is_playing() or self.engine.paused):
+                tags.append("playing")
+            self.listbox.item(str(i), tags=tuple(tags))
 
     def _selected_indices(self):
         result = []
@@ -786,6 +808,7 @@ class SePlayerApp:
         self.listbox.see(str(index))
         self.listbox.focus(str(index))
         self.play_button.config(text="⏸")
+        self._mark_playing()
         label = track["title"]
         if track["artist"]:
             label = f"{track['artist']} – {label}"
@@ -817,6 +840,7 @@ class SePlayerApp:
         self.play_button.config(text="▶")
         self.progress.set(0)
         self.time_current.config(text="00:00")
+        self._mark_playing()
 
     def play_next(self, auto=False):
         if not self.tracks:
@@ -1035,6 +1059,7 @@ class SePlayerApp:
     def _tick(self):
         if self.engine.finished() and self.current_index >= 0:
             self.play_next(auto=True)
+        self._mark_playing()
         if 0 <= self.current_index < len(self.tracks):
             duration = self.tracks[self.current_index]["duration"]
             position = self.engine.position()

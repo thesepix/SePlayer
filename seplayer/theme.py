@@ -82,14 +82,23 @@ def apply(root, name="light"):
 
 
 def style_tk_widget(w):
-    """Färbt ein klassisches tk-Widget (Listbox, Scale, Entry …) passend ein."""
+    """Färbt ein klassisches tk-Widget (Listbox, Scale, Entry …) passend ein.
+
+    Jede Option einzeln setzen — manche Optionen existieren je nach Widget nicht
+    (z. B. troughcolor nur bei Scale), ein Sammel-Aufruf würde sonst alles blockieren.
+    """
     p = palette()
-    try:
-        w.configure(bg=p["bg"], fg=p["fg"], selectbackground=p["select_bg"],
-                    selectforeground=p["select_fg"], highlightbackground=p["bg"],
-                    troughcolor=p["trough"], insertbackground=p["insert"])
-    except tk.TclError:
-        pass
+    for opt, val in (("bg", p["bg"]), ("fg", p["fg"]),
+                     ("selectbackground", p["select_bg"]),
+                     ("selectforeground", p["select_fg"]),
+                     ("highlightbackground", p["bg"]),
+                     ("highlightcolor", p["border"]),
+                     ("troughcolor", p["trough"]),
+                     ("insertbackground", p["insert"])):
+        try:
+            w.configure({opt: val})
+        except tk.TclError:
+            pass
 
 
 def style_menu(m):
