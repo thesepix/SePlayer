@@ -9,16 +9,18 @@ Erzeugt eine einzelne startfähige Datei:
 import os
 import sys
 
+import imageio_ffmpeg
+
 a = Analysis(
     ["se_player.py"],
     pathex=[],
-    binaries=[],
+    binaries=[(imageio_ffmpeg.get_ffmpeg_exe(), ".")],
     datas=[(os.path.join("seplayer", "assets", "icon.png"), os.path.join("seplayer", "assets")),
            (os.path.join("seplayer", "assets", "icon_dark.png"), os.path.join("seplayer", "assets"))],
     hiddenimports=[
         "mutagen", "mutagen.mp3", "mutagen.flac", "mutagen.mp4",
         "mutagen.oggvorbis", "mutagen.oggopus", "mutagen.wave", "mutagen.aiff",
-        "pygame.mixer",
+        "pygame.mixer", "imageio_ffmpeg",
     ],
     hookspath=[],
     hooksconfig={},

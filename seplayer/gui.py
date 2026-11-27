@@ -25,6 +25,7 @@ from . import state as statelib
 from . import tags as taglib
 from . import theme
 from .audio import PlaybackEngine
+from .convert import ConvertDialog
 from .organize import AutoOrganizeDialog
 from .preferences import PreferencesDialog
 from .properties import PropertiesDialog
@@ -451,9 +452,10 @@ class SePlayerApp:
         self.tree.bind("<<TreeviewOpen>>", self._on_tree_open)
         self.tree.bind("<<TreeviewSelect>>", self._on_tree_select)
         self.tree.bind("<Button-1>", lambda _e: self.tree.focus_set(), add="+")
-        # Type-Ahead am Root binden, damit Tippen egal welcher Bereich den Fokus hat,
-        # im Ordnerbaum landet (nur nicht im Zellen-Editor/Entry)
-        self.root.bind("<KeyPress>", self._on_tree_key, add="+")
+        # Type-Ahead direkt auf die Widgets binden (Widget-Bindings laufen VOR den
+        # Klassen-Bindings; ein Root-Binding würde von der Treeview-Klasse gebrochen)
+        for w in (self.tree, self.listbox, self.fav_list):
+            w.bind("<KeyPress>", self._on_tree_key, add="+")
         self.fav_list.bind("<ButtonRelease-1>", self._on_fav_select)
         self.listbox.bind("<<TreeviewSelect>>", lambda _e: self._update_cover())
         self.listbox.bind("<Double-1>", self._on_play_selected)
@@ -1127,12 +1129,27 @@ class SePlayerApp:
         menu.add_command(label=f"Eigenschaften … ({len(indices)} Datei(en))", command=self._open_properties)
         menu.add_command(label=f"Auto-Organize: umbenennen … ({len(indices)} Datei(en))",
                          command=self._open_auto_organize)
+        menu.add_command(label=f"Konvertieren nach … ({len(indices)} Datei(en))",
+                         command=self._open_convert)
         menu.add_command(label="Im Explorer/Finder öffnen", command=self._show_in_file_manager)
         menu.add_command(label="Abspielen", command=self._on_play_selected)
         try:
             menu.tk_popup(event.x_root, event.y_root)
         finally:
             menu.grab_release()
+
+    def _open_convert(self):
+        indices = self._selected_indices()
+        tracks = [self.tracks[i] for i in indices if 0 <= i < len(self.tracks)]
+        if tracks:
+            ConvertDialog(self.root, tracks, on_done=self._on_converted,
+                          guard=self.engine.free_file)
+
+    def _on_converted(self):
+        if self.folder and os.path.isdir(self.folder):
+            self.load_folder(self.folder)
+        else:
+            self._fill_list()
 
     def _open_auto_organize(self):
         indices = self._selected_indices()

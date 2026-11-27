@@ -218,6 +218,51 @@ def write_rating(path, stars):
         return _err(exc)
 
 
+RIFF_INFO_MAP = {
+    "INAM": "title", "IART": "artist", "IPRD": "album", "IGNR": "genre",
+    "ICRD": "year", "ICMT": "comment", "ITRK": "track", "IPRT": "disc",
+    "ICOP": None, "ISFT": None,
+}
+
+
+def _read_riff_info(path):
+    """RIFF-INFO-Tags aus einer WAV-Datei lesen (INAM=Titel, IART=Interpret …)."""
+    info = {}
+    try:
+        with open(_open_path(path), "rb") as fh:
+            head = fh.read(12)
+            if len(head) < 12 or head[:4] != b"RIFF" or head[8:12] != b"WAVE":
+                return info
+            while True:
+                header = fh.read(8)
+                if len(header) < 8:
+                    break
+                cid = header[:4]
+                size = int.from_bytes(header[4:8], "little")
+                if cid == b"LIST":
+                    form = fh.read(4)
+                    end = fh.tell() + size - 4
+                    if form == b"INFO":
+                        while fh.tell() + 8 <= end:
+                            sub = fh.read(8)
+                            if len(sub) < 8:
+                                break
+                            sid = sub[:4]
+                            ssize = int.from_bytes(sub[4:8], "little")
+                            data = fh.read(ssize + (ssize & 1))
+                            try:
+                                info[sid.decode("ascii", "ignore")] = data.rstrip(b"\x00").decode("utf-8", "ignore")
+                            except Exception:
+                                pass
+                    else:
+                        fh.seek(end)
+                else:
+                    fh.seek(size + (size & 1), 1)
+    except OSError:
+        pass
+    return info
+
+
 def read_metadata(path):
     """Liest alle Tags einer Audiodatei (inkl. technischer Infos)."""
     meta = {key: "" for key in TEXT_FIELDS}
@@ -248,6 +293,17 @@ def read_metadata(path):
         if tags is not None:
             for field in TEXT_FIELDS:
                 meta[field] = _read_text(tags, field)
+            if not meta["title"]:
+                meta["title"] = os.path.splitext(meta["filename"])[0]
+            meta["year"] = meta["year"][:4]
+            meta["track"] = meta["track"].split("/")[0]
+            meta["disc"] = meta["disc"].split("/")[0]
+        if meta["ext"] == "wav":
+            # WAV ohne (vollständige) ID3-Tags: RIFF-INFO als Fallback
+            info = _read_riff_info(path)
+            for riff_key, field in RIFF_INFO_MAP.items():
+                if field and riff_key in info and not meta[field]:
+                    meta[field] = info[riff_key]
             if not meta["title"]:
                 meta["title"] = os.path.splitext(meta["filename"])[0]
             meta["year"] = meta["year"][:4]
