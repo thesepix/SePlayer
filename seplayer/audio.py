@@ -149,7 +149,7 @@ class PlaybackEngine:
         return self.available and self._playing and not self.paused and pygame.mixer.music.get_busy()
 
     @contextlib.contextmanager
-    def free_file(self, path):
+    def free_file(self, path, new_path=None):
         """Windows-Sperre umgehen (WinError 32 beim Umbenennen/Beschreiben der spielenden Datei).
 
         Wenn `path` gerade geladen ist: ~50 ms stille WAV abspielen (SDL gibt damit das
@@ -181,17 +181,32 @@ class PlaybackEngine:
             yield
         finally:
             self._suppress_auto = False
-            pygame.mixer.music.load(path)
-            self.current_path = path
+            # Waehrend des yield kann die Datei umbenannt/verschoben worden sein
+            # (Auto-Organize): dann am NEUEN Pfad an letzter Position nahtlos
+            # weiterspielen; wenn weder alt noch neu existieren, Wiedergabe sauber
+            # stoppen (kein pygame.error -> kein Sprung auf den naechsten Track).
+            resume_path = None
+            if new_path and os.path.exists(new_path):
+                resume_path = new_path
+            elif os.path.exists(path):
+                resume_path = path
             self._offset = 0.0
             self._playing = False
             self.paused = False
-            if was_playing:
-                self.play(start=pos)
-                if was_paused:
-                    self._offset = pos
-                    pygame.mixer.music.pause()
-                    self.paused = True
+            self.current_path = resume_path
+            if resume_path is not None:
+                try:
+                    pygame.mixer.music.load(resume_path)
+                    if was_playing:
+                        self.play(start=pos)
+                        if was_paused:
+                            self._offset = pos
+                            pygame.mixer.music.pause()
+                            self.paused = True
+                except Exception:
+                    self._playing = False
+                    self.paused = False
+                    self.current_path = None
             try:
                 pygame.event.get()  # altes END_EVENT der Stille-WAV verwerfen
             except Exception:

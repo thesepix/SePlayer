@@ -1037,6 +1037,12 @@ class SePlayerApp:
                 "Die Audiowiedergabe ist nicht verfügbar — der Audio-Mixer konnte nicht initialisiert werden.")
             return
         track = self.queue[index]
+        if not os.path.exists(track["path"]):
+            messagebox.showwarning(
+                "Datei nicht gefunden",
+                f"{track['filename']}\n\n{track['path']}\n\nDie Datei wurde evtl. umbenannt oder "
+                "verschoben. Über Datei → Ordner öffnen … lädt die Anzeige die aktuellen Namen neu.")
+            return
         try:
             self.engine.load(track["path"])
             self.engine.play()

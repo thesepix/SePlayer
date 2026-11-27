@@ -54,7 +54,8 @@ Desktop-Musikplayer für **Windows, macOS und Linux** — geschrieben in Python 
   und ab letzter Position weiter abgespielt
 - **Auto-Organize (Umbenennen per Muster)** wie in MediaMonkey: Rechtsklick → „Auto-Organize: umbenennen …",
   Muster z. B. `## - artist - title` (`##` = Track-Nr. zweistellig, `#` = Track-Nr., `<feld>` oder
-  Feldname als Wort = Tag-Wert, z. B. `<Artist> - <Title>`), mit Live-Vorschau und Kollisions-Schutz
+  Feldname als Wort = Tag-Wert, z. B. `<Artist> - <Title>`), mit Live-Vorschau und Kollisions-Schutz — funktioniert auch während der Wiedergabe, auch für den gerade
+  spielenden Titel (wird am neuen Namen nahtlos an derselben Stelle fortgesetzt)
 - **Titel aus Dateiname übernehmen:** Rechtsklick → „Titel aus Dateiname übernehmen“ setzt den Titel-Tag
   aus dem Dateinamen (z. B. `02 - Artist - Titel.mp3` → Titel „Titel“) — für alle markierten Dateien auf
   einmal, inkl. Vorschau der Änderungen; praktisch zum Reparieren überschriebener Titel

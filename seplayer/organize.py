@@ -17,7 +17,7 @@ class AutoOrganizeDialog(tk.Toplevel):
         theme.style_toplevel(self)
         self.tracks = tracks
         self.on_done = on_done
-        self.guard = guard or contextlib.nullcontext
+        self.guard = guard or (lambda *a, **k: contextlib.nullcontext())
         self.title(f"Auto-Organize — {len(tracks)} Datei(en) umbenennen")
         self.geometry("720x460")
         self.transient(master)
@@ -59,41 +59,47 @@ class AutoOrganizeDialog(tk.Toplevel):
 
     def _do_rename(self):
         renamed, skipped, errors = [], [], []
-        for i, (track, new_name) in enumerate(self._planned_names()):
-            if not new_name:
-                skipped.append(track["filename"])
-                continue
-            folder = os.path.dirname(track["path"])
-            target = os.path.join(folder, new_name)
-            if os.path.abspath(target) == os.path.abspath(track["path"]):
-                skipped.append(track["filename"])
-                continue
-            ext = os.path.splitext(new_name)[1]
-            base = new_name[:-len(ext)] if ext else new_name
-            n = 1
-            while os.path.exists(target):
-                target = os.path.join(folder, f"{base} ({n}){ext}")
-                n += 1
-            try:
-                with self.guard(track["path"]):
-                    for attempt in range(3):
-                        try:
-                            os.rename(track["path"], target)
-                            break
-                        except OSError as exc:
-                            # WinError 32/183: noch gesperrt -> kurzer Retry
-                            if getattr(exc, "winerror", None) in (32, 183) and attempt < 2:
-                                time.sleep(0.3)
-                                continue
-                            raise
-            except OSError as exc:
-                errors.append(f"{track['filename']}: {exc}")
-                continue
-            track["path"] = target
-            track["filename"] = os.path.basename(target)
-            renamed.append(f"{os.path.basename(target)}")
-        if self.on_done:
-            self.on_done()
+        try:
+            for i, (track, new_name) in enumerate(self._planned_names()):
+                if not new_name:
+                    skipped.append(track["filename"])
+                    continue
+                folder = os.path.dirname(track["path"])
+                target = os.path.join(folder, new_name)
+                if os.path.abspath(target) == os.path.abspath(track["path"]):
+                    skipped.append(track["filename"])
+                    continue
+                ext = os.path.splitext(new_name)[1]
+                base = new_name[:-len(ext)] if ext else new_name
+                n = 1
+                while os.path.exists(target):
+                    target = os.path.join(folder, f"{base} ({n}){ext}")
+                    n += 1
+                try:
+                    # guard = engine.free_file: die spielende Datei wird kurz freigegeben
+                    # und am NEUEN Namen (target) an letzter Position nahtlos fortgesetzt
+                    with self.guard(track["path"], target):
+                        for attempt in range(3):
+                            try:
+                                os.rename(track["path"], target)
+                                break
+                            except OSError as exc:
+                                # WinError 32/183: noch gesperrt -> kurzer Retry
+                                if getattr(exc, "winerror", None) in (32, 183) and attempt < 2:
+                                    time.sleep(0.3)
+                                    continue
+                                raise
+                except Exception as exc:
+                    errors.append(f"{track['filename']}: {exc}")
+                    continue
+                track["path"] = target
+                track["filename"] = os.path.basename(target)
+                renamed.append(f"{os.path.basename(target)}")
+        finally:
+            # Anzeige IMMER neu laden (auch bei Fehlern) - sonst zeigen alte Namen
+            # auf nicht mehr existente Dateien ("Datei nicht gefunden")
+            if self.on_done:
+                self.on_done()
         msg = f"{len(renamed)} Datei(en) umbenannt."
         if skipped:
             msg += f"\n{len(skipped)} unverändert/übersprungen."
