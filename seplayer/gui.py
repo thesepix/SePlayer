@@ -673,6 +673,13 @@ class SePlayerApp:
         if getattr(self, "_last_key_serial", None) == getattr(event, "serial", None):
             return  # derselbe Tastendruck kam schon ueber ein anderes Binding herein
         self._last_key_serial = getattr(event, "serial", None)
+        try:
+            self._global_key_body(event)
+        except Exception:
+            import traceback
+            self._debug_log("FEHLER in _on_global_key:\n" + traceback.format_exc())
+
+    def _global_key_body(self, event):
         focus_w = self.root.focus_get()
         ch = event.char or ""
         if not ch:
