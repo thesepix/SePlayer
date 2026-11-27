@@ -498,7 +498,13 @@ class SePlayerApp:
         if anchor is None or not self.tracks:
             return
         row = self.listbox.identify_row(event.y)
-        current = int(row) if (row and row.isdigit()) else len(self.tracks) - 1
+        if row and row.isdigit():
+            current = int(row)
+        else:
+            # Zeiger über/unter den Zeilen: Richtung anhand der ersten Zeile erkennen
+            children = self.listbox.get_children()
+            first_top = self.listbox.bbox(children[0])[1] if children else 0
+            current = 0 if event.y < first_top else len(self.tracks) - 1
         a, b = sorted((anchor, current))
         self.listbox.selection_set(*[str(i) for i in range(a, b + 1)])
 
