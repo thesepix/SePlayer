@@ -66,11 +66,13 @@ jobs:
           cp "${{ matrix.path }}" "$OUT"
           echo "path=$OUT" >> "$GITHUB_OUTPUT"
           echo "ver=$VER" >> "$GITHUB_OUTPUT"
-      - name: Artefakt hochladen
+      - name: Artefakt hochladen (Quota-sicher: kurz behalten, nie kritisch)
         uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: SePlayer-${{ steps.ver.outputs.ver }}
           path: ${{ steps.ver.outputs.path }}
+          retention-days: 3
       - name: Release erstellen (nur bei Tag v*)
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
