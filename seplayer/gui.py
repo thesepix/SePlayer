@@ -473,7 +473,12 @@ class SePlayerApp:
             self._edit_after_id = None
 
     def _on_list_click(self, event):
-        """Klick auf eine bereits markierte Zelle -> Inhalt direkt editieren (nach 400 ms)."""
+        """Klick auf eine bereits markierte Zelle.
+
+        Spalte „Bewertung": Stern direkt per Klick setzen (Position in der Zelle = Anzahl
+        Sterne, 1 Klick statt Rechtsklick-Menü). Andere Tag-Spalten: Inhalt direkt
+        editieren (nach 300 ms, damit Doppelklick = Abspielen nicht kollidiert).
+        """
         if self.listbox.identify_region(event.x, event.y) != "cell":
             return
         row = self.listbox.identify_row(event.y)
@@ -487,11 +492,18 @@ class SePlayerApp:
             return
         if not 0 <= index < len(ids):
             return
+        self._cancel_pending_edit()
+        if ids[index] == "rating":
+            bbox = self.listbox.bbox(row, "rating")
+            if bbox:
+                frac = (event.x - bbox[0]) / max(1, bbox[2])
+                stars = min(5, max(1, int(frac * 5) + 1))
+                self._set_rating(stars)
+            return
         field = EDITABLE_COLUMNS.get(ids[index])
         if field is None:
             return
-        self._cancel_pending_edit()
-        self._edit_after_id = self.root.after(400, lambda: self._start_cell_edit(row, field))
+        self._edit_after_id = self.root.after(300, lambda: self._start_cell_edit(row, field))
 
     def _start_cell_edit(self, row, field):
         self._edit_after_id = None

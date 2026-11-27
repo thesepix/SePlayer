@@ -27,8 +27,13 @@ Desktop-Musikplayer für **Windows, macOS und Linux** — geschrieben in Python 
   (Titel, Interpret, Album, Albuminterpret, Komponist, Genre, Jahr, Track, Disc, Kommentar,
   Bewertung — alles editierbar), **Details** (Pfad, Größe, Bitrate, Samplerate, Kanäle, Dauer)
   und **Bewertungsfelder** (welche Rating-Felder in der Datei stehen)
-- **Mehrfachauswahl:** mehrere Titel markieren (Klick, Strg+Klick, Shift+Klick) — Rechtsklick-Menü
-  (Bewertung, Eigenschaften) wirkt auf **alle** markierten Dateien, z. B. Artist eines ganzen Albums ändern
+- **Direkt in der Liste bearbeiten:** Zelle eines markierten Titels anklicken → Feld wird editierbar
+  (Titel, Interpret, Album, Genre, Jahr, Kommentar, Track-Nr., Disc — Enter schreibt den Tag in die Datei,
+  Esc bricht ab). **Bewertung: ein Klick auf die Sterne in der Spalte „Bewertung"** setzt direkt 1–5 Sterne
+  (Position in der Zelle = Sternzahl; 0 Sterne über Rechtsklick → „Bewertung entfernen").
+- **Mehrfachauswahl:** mehrere Titel markieren (Klick, Maus-Ziehen, Strg+Klick, Shift+Klick, **Strg+A** = alle)
+  — Rechtsklick-Menü (Bewertung, Eigenschaften) wirkt auf **alle** markierten Dateien, z. B. Artist eines
+  ganzen Albums ändern
 - **Tastenkürzel:** Enter = Wiedergabe des markierten Titels starten, Leertaste = Play/Pause,
   → = nächster Titel, ← = vorheriger Titel
 - **Spalten per Rechtsklick auf die Kopfzeile** ein-/ausblenden und per Drag verschieben
