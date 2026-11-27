@@ -67,6 +67,12 @@ SORT_KEYS = {
 }
 
 
+def resource_path(rel):
+    if getattr(sys, "frozen", False):
+        return os.path.join(sys._MEIPASS, rel)
+    return os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), rel)
+
+
 def default_column_config():
     return [{"id": fid, "visible": fid in DEFAULT_COLUMNS, "width": w}
             for fid, _label, w in FIELD_DEFS]
@@ -189,6 +195,7 @@ class SePlayerApp:
         self._refresh_favorites()
         theme.apply(self.root, self._state.get("theme", "light"))
         self._restyle_tk()
+        self._load_icon()
         self.root.after(150, self._apply_layout)
         last = self._state.get("last_folder") or ""
         if self._state.get("autoload_last", True) and last and os.path.isdir(last):
@@ -218,6 +225,24 @@ class SePlayerApp:
         try:
             self.main_pane.sashpos(0, int(self._state.get("sash_main", 300)))
             self.left_pane.sashpos(0, int(self._state.get("sash_left", 400)))
+        except Exception:
+            pass
+
+    def _load_icon(self):
+        """S-Logo aus dem Moniker-Logo: kleines Overlay unten rechts + Fenster-/Taskleisten-Icon."""
+        try:
+            name = "icon_dark.png" if theme.CURRENT == "dark" else "icon.png"
+            path = resource_path(os.path.join("seplayer", "assets", name))
+            if not os.path.exists(path):
+                return
+            img = Image.open(path).convert("RGBA")
+            img.thumbnail((28, 28))
+            buffer = io.BytesIO()
+            img.save(buffer, format="PNG")
+            self._icon_photo = tk.PhotoImage(data=buffer.getvalue())
+            self.icon_label.config(image=self._icon_photo)
+            self.icon_label.place(in_=self.right_frame, relx=1.0, rely=1.0, anchor="se", x=-6, y=-6)
+            self.root.iconphoto(True, self._icon_photo)
         except Exception:
             pass
 
@@ -312,6 +337,8 @@ class SePlayerApp:
         list_frame.pack(fill=tk.BOTH, expand=True, padx=4, pady=(4, 2))
         self._apply_columns()
         self.listbox.tag_configure("playing", foreground="#e08600")
+
+        self.icon_label = ttk.Label(self.right_frame, text="")
 
         player = ttk.LabelFrame(self.right_frame, text="Wiedergabe")
         player.pack(fill=tk.X, padx=4, pady=(2, 4))
@@ -663,6 +690,16 @@ class SePlayerApp:
             self.tree.see(target)
             if not self.tree.item(target, "open"):
                 self.tree.item(target, open=True)
+        if target is None and getattr(self, "folder", None) and os.path.isdir(self.folder):
+            # Fallback: direkt im Dateisystem des angezeigten Ordners suchen
+            try:
+                for entry in sorted(os.listdir(self.folder)):
+                    full = os.path.join(self.folder, entry)
+                    if entry.lower().startswith(needle) and os.path.isdir(full):
+                        self._select_path_in_tree(full)
+                        return
+            except OSError:
+                pass
 
     # ---------- Favoriten ----------
 
@@ -1170,6 +1207,7 @@ class SePlayerApp:
         self._state.update(prefs)
         theme.apply(self.root, prefs.get("theme", "light"))
         self._restyle_tk()
+        self._load_icon()
         volume = int(prefs.get("volume", 70))
         self.volume.set(volume)
         self.engine.set_volume(volume / 100.0)

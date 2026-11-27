@@ -6,13 +6,15 @@ Erzeugt eine einzelne startfähige Datei:
   macOS:   dist/SePlayer.app   (Bundle; per hdiutil als .dmg packbar)
   Linux:   dist/SePlayer       (onefile, ausführbar)
 """
+import os
 import sys
 
 a = Analysis(
     ["se_player.py"],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=[(os.path.join("seplayer", "assets", "icon.png"), os.path.join("seplayer", "assets")),
+           (os.path.join("seplayer", "assets", "icon_dark.png"), os.path.join("seplayer", "assets"))],
     hiddenimports=[
         "mutagen", "mutagen.mp3", "mutagen.flac", "mutagen.mp4",
         "mutagen.oggvorbis", "mutagen.oggopus", "mutagen.wave", "mutagen.aiff",
@@ -38,6 +40,7 @@ exe = EXE(
     strip=False,
     upx=False,
     console=False,
+    icon=os.path.join("seplayer", "assets", "icon.ico"),
     disable_windowed_traceback=False,
 )
 
@@ -45,6 +48,6 @@ if sys.platform == "darwin":
     app = BUNDLE(
         exe,
         name="SePlayer.app",
-        icon=None,
+        icon=os.path.join("seplayer", "assets", "icon.ico"),
         bundle_identifier="com.thesepix.seplayer",
     )
