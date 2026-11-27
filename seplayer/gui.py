@@ -167,7 +167,9 @@ class SePlayerApp:
         self.engine = PlaybackEngine(volume=volume)
         self.folder = None
         self.tracks = []
+        self.queue = []  # Wiedergabe-Queue (unabhängig vom angezeigten Ordner)
         self.current_index = -1
+        self.loop_mode = self._state.get("loop_mode", "off")  # off | all | one
         self.seeking = False
         self._sort_column = "nr"
         self._sort_reverse = False
@@ -205,6 +207,7 @@ class SePlayerApp:
         self._state["last_folder"] = self.folder or ""
         self._state["favorites"] = self.favorites
         self._state["columns"] = self.column_config
+        self._state["loop_mode"] = self.loop_mode
         statelib.save_state(self._state)
 
     def _on_close(self):
@@ -326,6 +329,8 @@ class SePlayerApp:
         self.play_button.pack(side=tk.LEFT, padx=2)
         ttk.Button(controls, text="⏹", width=3, command=self.stop).pack(side=tk.LEFT)
         ttk.Button(controls, text="⏭", width=3, command=self.play_next).pack(side=tk.LEFT, padx=2)
+        self.loop_button = ttk.Button(controls, text=self._loop_label(), width=10, command=self._cycle_loop)
+        self.loop_button.pack(side=tk.LEFT, padx=2)
         self.track_label = ttk.Label(controls, text="–")
         self.track_label.pack(side=tk.LEFT, padx=12)
 
@@ -779,7 +784,7 @@ class SePlayerApp:
     def load_folder(self, path):
         self.folder = path
         self.tracks = []
-        self.current_index = -1
+        # queue/current_index bleiben bewusst stehen: Wiedergabe läuft beim Ordnerwechsel weiter
         try:
             entries = sorted(os.listdir(path))
         except OSError as exc:
@@ -847,11 +852,23 @@ class SePlayerApp:
         self.listbox.selection_set(*self.listbox.get_children())
         return "break"
 
+    def _loop_label(self):
+        return {"off": "Loop: aus", "all": "Loop: alle", "one": "Loop: einer"}[self.loop_mode]
+
+    def _cycle_loop(self):
+        order = ["off", "all", "one"]
+        self.loop_mode = order[(order.index(self.loop_mode) + 1) % len(order)]
+        self.loop_button.config(text=self._loop_label())
+        self._save_state()
+
     def _mark_playing(self):
-        """Markiert die Zeile des gerade spielenden Titels (orange)."""
+        """Markiert die Zeile des gerade spielenden Titels (orange), auch nach Ordnerwechsel."""
+        playing_path = None
+        if 0 <= self.current_index < len(self.queue) and (self.engine.is_playing() or self.engine.paused):
+            playing_path = self.queue[self.current_index]["path"]
         for i in range(len(self.tracks)):
             tags = [t for t in self.listbox.item(str(i), "tags") if t != "playing"]
-            if i == self.current_index and (self.engine.is_playing() or self.engine.paused):
+            if playing_path and self.tracks[i]["path"] == playing_path:
                 tags.append("playing")
             self.listbox.item(str(i), tags=tuple(tags))
 
@@ -873,14 +890,19 @@ class SePlayerApp:
             self.play_index(indices[0])
 
     def play_index(self, index):
-        if not 0 <= index < len(self.tracks):
+        """Spielt Titel `index` der aktuell angezeigten Liste (setzt die Queue auf diese Liste)."""
+        self.queue = list(self.tracks)
+        self._play_queue_index(index)
+
+    def _play_queue_index(self, index):
+        if not 0 <= index < len(self.queue):
             return
         if not self.engine.available:
             messagebox.showwarning(
                 "Kein Audio-Gerät",
                 "Die Audiowiedergabe ist nicht verfügbar — der Audio-Mixer konnte nicht initialisiert werden.")
             return
-        track = self.tracks[index]
+        track = self.queue[index]
         try:
             self.engine.load(track["path"])
             self.engine.play()
@@ -890,10 +912,13 @@ class SePlayerApp:
                 f"{track['filename']}\n\nDieses Format wird nicht unterstützt.\n({exc})")
             return
         self.current_index = index
-        if len(self._selected_indices()) <= 1:
-            self.listbox.selection_set(str(index))
-        self.listbox.see(str(index))
-        self.listbox.focus(str(index))
+        for i, t in enumerate(self.tracks):
+            if t["path"] == track["path"]:
+                if len(self._selected_indices()) <= 1:
+                    self.listbox.selection_set(str(i))
+                self.listbox.see(str(i))
+                self.listbox.focus(str(i))
+                break
         self.play_button.config(text="⏸")
         self._mark_playing()
         label = track["title"]
@@ -930,34 +955,41 @@ class SePlayerApp:
         self._mark_playing()
 
     def play_next(self, auto=False):
-        if not self.tracks:
+        if not self.queue:
             return
         nxt = self.current_index + 1
-        if nxt >= len(self.tracks):
+        if nxt >= len(self.queue):
             if auto:
-                self.stop()
-                return
-            nxt = 0
-        self.play_index(nxt)
+                if self.loop_mode == "one":
+                    self._play_queue_index(self.current_index)
+                    return
+                if self.loop_mode == "all":
+                    nxt = 0
+                else:
+                    self.stop()
+                    return
+            else:
+                nxt = 0
+        self._play_queue_index(nxt)
 
     def play_previous(self):
-        if not self.tracks:
+        if not self.queue:
             return
         if self.engine.position() > 3:
             self.engine.seek(0)
             return
         prev = self.current_index - 1
         if prev < 0:
-            prev = len(self.tracks) - 1
-        self.play_index(prev)
+            prev = len(self.queue) - 1
+        self._play_queue_index(prev)
 
     def _progress_fraction(self, event):
         width = max(1, self.progress.winfo_width())
         return min(1.0, max(0.0, event.x / width))
 
     def _seek_to(self, fraction):
-        if 0 <= self.current_index < len(self.tracks) and self.engine.current_path:
-            duration = self.tracks[self.current_index]["duration"]
+        if 0 <= self.current_index < len(self.queue) and self.engine.current_path:
+            duration = self.queue[self.current_index]["duration"]
             if duration > 0:
                 try:
                     self.engine.seek(fraction * duration)
@@ -991,8 +1023,10 @@ class SePlayerApp:
     # ---------- Cover ----------
 
     def _track_for_cover(self):
+        if 0 <= self.current_index < len(self.queue) and self.engine.current_path:
+            return self.queue[self.current_index]
         indices = self._selected_indices()
-        index = indices[0] if indices else self.current_index
+        index = indices[0] if indices else -1
         if index < 0 and self.tracks:
             index = 0
         if 0 <= index < len(self.tracks):
@@ -1147,8 +1181,8 @@ class SePlayerApp:
         if self.engine.finished() and self.current_index >= 0:
             self.play_next(auto=True)
         self._mark_playing()
-        if 0 <= self.current_index < len(self.tracks):
-            duration = self.tracks[self.current_index]["duration"]
+        if 0 <= self.current_index < len(self.queue):
+            duration = self.queue[self.current_index]["duration"]
             position = self.engine.position()
             if duration > 0:
                 position = min(position, duration)

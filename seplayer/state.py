@@ -21,6 +21,7 @@ DEFAULT_STATE = {
     "theme": "light",
     "autoload_last": True,
     "volume": 70,
+    "loop_mode": "off",
 }
 
 
