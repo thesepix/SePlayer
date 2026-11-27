@@ -18,6 +18,20 @@ EDIT_FIELDS = [
     ("comment", "Kommentar"),
 ]
 
+def plan_save(tracks, field_values, prefill, stars, prefill_stars):
+    """Entscheidet, was beim Speichern geschrieben wird.
+
+    Einzel-Track: alles. Mehrfachauswahl: nur Felder, die sich vom gemeinsamen
+    Vorbelegungs-Wert unterscheiden (leer vorbefüllt = unverändert lassen)."""
+    multi = len(tracks) > 1
+    fields = {}
+    for key, value in field_values.items():
+        if not multi or value != prefill.get(key, ""):
+            fields[key] = value
+    write_rating = (not multi) or stars != prefill_stars
+    return fields, write_rating
+
+
 RATING_WRITE_HINT = (
     "Beim Speichern wird die Bewertung in alle bekannten Felder geschrieben:\n"
     "MP3: POPM (POPULARIMETER) + TXXX „RATING MM“  ·  FLAC/OGG: RATING, RATING WMP, FMPS_RATING"
@@ -49,21 +63,28 @@ class PropertiesDialog(tk.Toplevel):
 
         tags_frame = ttk.Frame(notebook, padding=8)
         notebook.add(tags_frame, text="Tags")
+        self.prefill = {}
+        for key, _label in EDIT_FIELDS:
+            values = {t.get(key, "") for t in tracks}
+            self.prefill[key] = track.get(key, "") if len(values) == 1 else ""
+        rating_values = {int(t.get("rating", 0)) for t in tracks}
+        self.prefill_stars = int(track.get("rating", 0)) if len(rating_values) == 1 else 0
         if len(tracks) > 1:
             ttk.Label(tags_frame,
-                      text=f"Änderungen werden auf alle {len(tracks)} ausgewählten Dateien angewendet.").grid(
+                      text=f"{len(tracks)} Dateien: Felder mit gleichem Wert sind vorbefüllt, "
+                           f"unterschiedliche leer (leer lassen = nicht ändern).").grid(
                 row=0, column=0, columnspan=2, sticky=tk.W, pady=(0, 6))
         self.entries = {}
         for row, (key, label) in enumerate(EDIT_FIELDS, start=1 if len(tracks) > 1 else 0):
             ttk.Label(tags_frame, text=label).grid(row=row, column=0, sticky=tk.W, pady=2)
-            var = tk.StringVar(value=track.get(key, ""))
+            var = tk.StringVar(value=self.prefill[key])
             ttk.Entry(tags_frame, textvariable=var, width=52).grid(
                 row=row, column=1, sticky=tk.EW, pady=2, padx=(8, 0))
             self.entries[key] = var
         tags_frame.columnconfigure(1, weight=1)
         row = len(EDIT_FIELDS) + (1 if len(tracks) > 1 else 0)
         ttk.Label(tags_frame, text="Bewertung").grid(row=row, column=0, sticky=tk.W, pady=2)
-        self.rating_var = tk.IntVar(value=int(track.get("rating", 0)))
+        self.rating_var = tk.IntVar(value=self.prefill_stars)
         rating_box = ttk.Frame(tags_frame)
         for stars in range(6):
             text = stars_text(stars) if stars else "keine"
@@ -184,18 +205,24 @@ class PropertiesDialog(tk.Toplevel):
     # ---------- Speichern ----------
 
     def _save(self):
-        fields = {key: var.get().strip() for key, var in self.entries.items()}
+        field_values = {key: var.get().strip() for key, var in self.entries.items()}
         stars = int(self.rating_var.get())
+        fields, write_rating = plan_save(self.tracks, field_values, self.prefill, stars, self.prefill_stars)
         failed = []
         for track in self.tracks:
-            with self.guard(track["path"]):
-                ok_meta = taglib.write_metadata(track["path"], fields)
-                ok_rating = taglib.write_rating(track["path"], stars)
+            ok_meta = ok_rating = True
+            if fields or write_rating:
+                with self.guard(track["path"]):
+                    if fields:
+                        ok_meta = taglib.write_metadata(track["path"], fields)
+                    if write_rating:
+                        ok_rating = taglib.write_rating(track["path"], stars)
             if not (ok_meta and ok_rating):
                 failed.append(track["filename"])
                 continue
             track.update(fields)
-            track["rating"] = stars
+            if write_rating:
+                track["rating"] = stars
             if self.on_save:
                 self.on_save(track)
         if failed:
