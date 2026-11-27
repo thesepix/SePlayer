@@ -1,4 +1,4 @@
-pyinstaller>=6.10
-pyinstaller-hooks-contrib>=2024.8
-imageio-ffmpeg
-pystray
+pyinstaller==6.22.3
+pyinstaller-hooks-contrib==2026.10
+imageio-ffmpeg==0.8.2
+pystray==0.19.5

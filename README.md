@@ -7,6 +7,8 @@ Desktop-Musikplayer für **Windows, macOS und Linux** — geschrieben in Python 
 - [AGENTS.md](AGENTS.md) — Kurzregeln für KI-Agenten (Build, Tests, Release-Flow)
 - [HANDOVER.md](HANDOVER.md) — vollständiger Projekt-Kontext, Historie, offene Punkte
 - [CONTRIBUTING.md](CONTRIBUTING.md) — Setup, Entwicklung, PR-Prozess
+- [CHANGELOG.md](CHANGELOG.md) — Versionshistorie
+- Vor jedem Commit: `python3 tools/check.py` (Tests inkl. headless GUI-Test, siehe `tests/README.md`)
 - Lizenz: GPL-3.0 (s. LICENSE)
 
 ## Funktionen

@@ -24,8 +24,9 @@ pyinstaller se_player.spec --noconfirm --clean
 
 ## Vor jedem Commit
 
-- `python3 -m py_compile se_player.py seplayer/*.py` muss durchlaufen.
+- **`python3 tools/check.py`** muss „ALL CHECKS OK“ ausgeben (py_compile + AST + Workflow-YAML + Unit-Tests; GUI-Test nur mit DISPLAY, Rezept in `tests/README.md`).
 - Patch per grep im File verifizieren (nicht blind vertrauen).
+- Python-Version: `.python-version` (3.12); Requirements sind gepinnt.
 - Manuell testen: Start, Ordnerbaum, Wiedergabe, Tags schreiben, Dark Mode — Version im Fenstertitel notieren.
 
 ## Commits, Branches, PRs

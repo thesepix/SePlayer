@@ -3,7 +3,7 @@
 **Repo:** `thesepix/SePlayer` (**PUBLIC** — alles inkl. dieser Datei ist öffentlich sichtbar) · **Aktueller Stand:** `v1.3.33` (Tag + Release vorhanden, CI grün)
 **Projekt:** privater Desktop-Musikplayer (MediaMonkey-artig) für Windows/macOS/Linux.
 **Nutzer:** deutschsprachig, testet primär auf einem Windows-PC, auch Mac. Mag robuste Datei-Sperr-Behandlung
-(Umbenennen/Beschreiben während der Wiedergabe), versionierte Binaries (nie „welche Version teste ich gerade?"),ällt nicht gern auf CI-Benachrichtigungs-Mails und stale Exes herein.
+(Umbenennen/Beschreiben während der Wiedergabe), versionierte Binaries (nie „welche Version teste ich gerade?"),ärgert sich über CI-Benachrichtigungs-Mails und über das Testen staler Exes.
 
 ---
 
@@ -39,40 +39,47 @@
 - `seplayer/assets/` — S-Icon (schwarz/weiß/ico), 28-px-Overlay unten rechts + Fenster-/Taskleisten-Icon.
 - `README.md` — Feature-Doku + Installationshinweise. **`HANDOVER.md`** — diese Datei.
 
-## 3. Versionshistorie (kompakt)
+## 3. Versionshistorie
 
-- v1.0.0–1.0.2: erste App + CI; Start-Crash „video system not initialized" (Display vor Mixer).
-- v1.1.0: Favoriten, state.json, konfigurierbare Spalten, Eigenschaften-Dialog, Multi-Rating-Felder.
-- v1.2.x: „Im Explorer/Finder öffnen", Cover-Tab.
-- v1.3.0–1.3.4: Multi-Select, Enter=Play, Preferences, Spalten-Menü + Drag-Reorder, Auto-Organize, Klick-Seek, Inline-Edit, globaler Fehler-Popup, Reload nach Rename.
-- v1.3.5–1.3.8: WAV/AIFF-ID3-Rating, spielende Zeile orange, Ctrl+A, 1-Klick-Sterne, CI-Quota-Fix (retention 3 + continue-on-error), YAML-Kolonnen-Bug.
-- v1.3.9–1.3.11: Type-Ahead im Baum (v1.3.9 ging durch Sandbox-Wipe verloren; v1.3.11 mit grep-Verify neu). **Wichtig: Sandbox wischt `/workspace` zwischen Nachrichten — nie uncommittete Änderungen über Tool-Calls hinweg vertrauen.**
-- v1.3.12: Queue unabhängig vom Ordner; Loop-Button.
-- v1.3.13: S-Logo (icon.png/icon_dark.png/icon.ico) als exe-/Fenster-/Tray-Icon; Type-Ahead-FS-Fallback.
-- v1.3.14–1.3.17: CI-Release-Cleanup debuggt (bash statt PowerShell; `gh api releases?id`; kein `--arg`); nur neuestes Release bleibt.
-- v1.3.18/19: Type-Ahead auf Widget-Ebene; WAV-RIFF-INFO; Konvertieren (ffmpeg gebündelt).
-- v1.3.20: Multi-Edit schreibt nur geänderte Felder (Titel-Bug behoben).
-- v1.3.21: Type-Ahead-Puffer im Rahmen-Titel („Ordner „v““).
-- v1.3.22: Tray-Icon (pystray).
-- v1.3.23: Drag-Select-Fix (Zeiger über erster Zeile).
-- v1.3.24/25: `free_file` gehärtet (Temp-WAV, Retry WinError 32/183, chmod+Retry bei PermissionError).
-- v1.3.26: stale END_EVENT nach Resume verwerfen; Stille-WAV 20 ms.
-- v1.3.27: Sterne per Klick in Bewertungs-Spalte nur bei Einfachauswahl (Mehrfachauswahl nur via Rechtsklick).
-- **v1.3.28: Start-Crash in gepackten Builds behoben** — `sys.frozen` → `SDL_VIDEODRIVER=dummy` (GUI ist tkinter, Video nur für Event-Queue); breite `except Exception` überall in der Audio-Init; macOS-CI verifiziert Signatur + signiert DMG; README: Builds laufen automatisch.
-- v1.3.29: Type-Ahead umgebaut (bind_all, fokusabhängig: Baum/Titelliste/Favoriten); **Suche (Strg+F)**; **„Titel aus Dateiname übernehmen"** im Kontextmenü.
-- v1.3.30: Auto-Organize während Wiedergabe gefixt — `free_file(path, new_path)` spielt umbenannten spielenden Track am neuen Namen nahtlos weiter (vorher: Abbruch + nächster Track + „Datei nicht gefunden"); `on_done` in `finally`; klare „Datei nicht gefunden"-Meldung.
-- v1.3.31: Type-Ahead grundlegend repariert + **headless per Xvfb getestet**: `_ensure_populated` (programmatic `open=True` feuert KEIN `<<TreeviewOpen>>` → Platzhalter „…" blieb stehen), Suchreihenfolge: Kinder des Knotens → Geschwister → alle geladenen Knoten (BFS) → Dateisystem des aktuellen Ordners; KeyPress doppelt gebunden mit Serial-Dedupe; keine doppelten Kinder in `_populate_node`.
-- v1.3.32: Type-Ahead-Diagnose-Log: jede Taste nach `<Config>/SePlayer/typeahead.log` (Windows: `%APPDATA%\SePlayer\typeahead.log`, wird bei >512 KB geleert); dritte KeyPress-Ebene (root/toplevel); keysym-Fallback.
-- v1.3.33: `_on_global_key` komplett in try/except — Fehler landen als Traceback im Log statt als Popup.
+→ siehe [CHANGELOG.md](CHANGELOG.md) (neueste oben). Release-Regel: Version bumpen → Commit `vX.Y.Z: …` → push main → Tag `vX.Y.Z` pushen (nie löschen/re-pushen).
 
-## 4. Prozess-Regeln (WICHTIG für die nächste KI)
+## 3a. Aktueller Arbeitsstand (vor jeder Aufgabe ausfüllen, nach jedem Teilschritt aktualisieren)
 
-1. **Sandbox wischt `/workspace` zwischen User-Nachrichten.** Immer zuerst: `cd /workspace/github__thesepix__SePlayer && git fetch -q origin && git reset -q --hard origin/main`. Patch + grep-Verify + AST + `py_compile` + commit + push + tag in **einem einzigen bash-Kommando** ausführen — nie uncommittete Änderungen über Nachrichten hinweg retten wollen (mehrfach verloren gegangen).
-2. Push: `git -c "credential.helper=!f() { echo username=thesepix; echo password=\$GH_TOKEN; }; f" push origin main` (Dasselbe für Tags). `gh` ist authentifiziert für Reads und git-push; **mutierende REST-Aufrufe sind blockiert** („Mutating GitHub API calls are not allowed"), curl ist blockiert. CI-GITHUB_TOKEN löscht Releases.
-3. **Tags nur frisch anlegen** (`git tag vX.Y.Z && push origin vX.Y.Z`), nie löschen/re-pushen (erzeugt „No jobs were run"-Mails, die den Nutzer nerven).
-4. Vor Commit: `python3 -m py_compile se_player.py seplayer/*.py`, AST-Parse aller Dateien, `yaml.safe_load` auf dem Workflow, grep-Verify, dass das Patch wirklich im File ist.
-5. Version bumpen in `seplayer/__init__.py`; Commit-Msg auf Deutsch mit `vX.Y.Z: ...`; dann Tag + pushen; CI-Run abwarten (~2–4 min) und Release-Assets prüfen: `gh run list --repo thesepix/SePlayer --limit 2 --json databaseId,headBranch,status,conclusion` und `gh api repos/thesepix/SePlayer/releases/tags/vX.Y.Z --jq '[.assets[].name]'`.
-6. Nie neue Repos anlegen. Dateien werden nur über Push ins bestehende Repo ausgeliefert.
+**Aktuelle Aufgabe:** Type-Ahead im Ordnerbaum auf dem Windows-PC des Nutzers debuggen.
+- Ziel: Funckarma im Baum markiert → „r“ tippen → Sprung auf RJELEVEN (nächster „r“-Geschwister).
+- Plan: Nutzer testet v1.3.33, wertet `typeahead.log` aus (§5), dann fixen.
+- Betroffene Dateien: `seplayer/gui.py` (Type-Ahead), ggf. `tests/test_gui_typeahead.py`.
+- Status: **wartet auf `typeahead.log` von v1.3.33** (`%APPDATA%\SePlayer\typeahead.log`, letzte ~10 Zeilen nach dem Tippen).
+
+## 3b. Versucht und gescheitert (nicht wiederholen)
+
+- Root-weites KeyPress-Binding: wird von der Treeview-Klassen-Binding gebrochen → deshalb bind_all + root + Widgets mit Serial-Dedupe.
+- Nur Widget-Bindings (v1.3.18–28): auf manchen Systemen unzuverlässig.
+- Sibling-first-Suchreihenfolge (v1.3.29): falsches Ziel → jetzt Kinder des Knotens zuerst.
+- Programmatisches `open=True` feuert KEIN `<<TreeviewOpen>>` → `_ensure_populated` lädt Kinder nach.
+- „video system not initialized“ in gepackten Builds → `SDL_VIDEODRIVER=dummy` bei `sys.frozen` (v1.3.28).
+- `gh release list --json databaseId` und `gh api --arg` sind ungültig; CI-Cleanup braucht `shell: bash` + `gh api …/releases?id`.
+- Multi-Edit vor v1.3.20 überschrieb die Titel aller markierten Tracks → `plan_save` schreibt nur geänderte Felder.
+- v1.3.9-Type-Ahead ging durch Sandbox-Wipe verloren → immer in einem Schritt committen.
+
+## 3c. Letzter bekannt guter Stand
+
+- **v1.3.33** (Tag + Release, CI grün, Commit `7977d57`); Doku/Standards danach: `5a9960e`. Zurückgehen: `git checkout v1.3.33`.
+
+## 4. Prozess-Regeln (allgemeingültig — funktionieren mit jedem Werkzeug)
+
+1. Kleine, häufige Commits; **main bleibt immer lauffähig** — Unfertiges auf Branch `wip/<thema>`.
+2. Vor jedem Commit nur: **`python3 tools/check.py`** (py_compile + AST + Workflow-YAML + Unit-Tests; GUI-Test nur mit DISPLAY, sonst skip — Rezept in `tests/README.md`).
+3. Patch per grep im File verifizieren (nicht blind vertrauen).
+4. Version bumpen in `seplayer/__init__.py`; Commit `vX.Y.Z: …` auf Deutsch; push `main`; `git tag vX.Y.Z && git push origin vX.Y.Z`. **Nie Tags löschen/re-pushen.** Nie neue Repos anlegen.
+5. CI baut automatisch bei jedem Push auf `main` und jedem Tag `v*`; prüfen mit den Befehlen in §8.
+6. Offene Punkte/Bugs zusätzlich als **GitHub-Issues** tracken (brauchen Schreibzugriff) — in HANDOVER.md nur verlinken.
+7. Requirements sind gepinnt (`requirements.txt`, `requirements-build.txt`), Python-Version in `.python-version`.
+
+### Umgebungsnotizen (nur diese eine Sandbox-Umgebung — NICHT allgemeingültig; keine Credentials in öffentlichen Dateien)
+
+- Diese Sandbox wischt `/workspace` zwischen Nachrichten → immer zuerst `git fetch -q origin && git reset -q --hard origin/main`; Patch + `tools/check.py` + Commit + Push in **einem** bash-Kommando.
+- Push aus dieser Sandbox nur mit lokal hinterlegten Git-Credentials; das Umgebungs-Token erlaubt **keine mutierenden REST-Aufrufe** (Issues/PRs/Visibility/Merges gehen darüber nicht) und curl ist blockiert.
 
 ## 5. OFFEN: Type-Ahead funktioniert auf dem Windows-PC des Nutzers nicht
 
@@ -82,11 +89,16 @@
 - **Log interpretieren:** `key='r' ... -> typeahead buf` + `target=...` = Taste kommt an und Sprung wird berechnet; **keine `key=`-Zeilen** = Tastendruck erreicht die App nicht (Fokus/Stale-Exe); `ignoriert: ...` = Grund steht dabei (Dialog offen / Textfeld / Strg+Alt); `FEHLER in _on_global_key:` + Traceback = echter Fehler auf seinem System.
 - Bekannte Tk-Fallen (bereits adressiert): root-Binding wird von Treeview-Klassen-Binding gebrochen → deshalb bind_all + root + Widget-Bindings mit Serial-Dedupe; programmatisches `open=True` feuert kein `<<TreeviewOpen>>` → `_ensure_populated` lädt Kinder beim Auswählen/Öffnen nach.
 
-## 6. Headless-Test-Rezept im Sandbox (funktioniert, für Reproduktionen)
+## 6. Headless-Test-Rezept (Xvfb) — jetzt versioniert in `tests/README.md`
+
+Massgeblich: `tests/README.md` + `tests/test_gui_typeahead.py` (+ `tools/check.py`). Kurzfassung:
 
 Ohne root: `apt-get -o Dir::State::Lists=/tmp/apt/lists -o Dir::Cache=/tmp/apt/cache -o Dir::State::status=/tmp/apt/state/status -o APT::Get::AllowUnauthenticated=true update` und `... install --download-only -y xvfb libtk8.6 libtcl8.6 fontconfig-config fonts-dejavu-core`, dann alle debs mit `dpkg -x` nach `/tmp/xroot`. Xvfb-Binary patchen (`/usr/bin\0` → `/tmp/x\0\0\0`, xkbcomp nach `/tmp/x/xkbcomp`), starten: `LD_LIBRARY_PATH=/tmp/xroot/usr/lib/x86_64-linux-gnu /tmp/Xvfb :99 -screen 0 1280x800x24 -ac -xkbdir /tmp/xroot/usr/share/X11/xkb &`. Test-App mit: `DISPLAY=:99 LD_LIBRARY_PATH=/tmp/xroot/usr/lib/x86_64-linux-gnu TCL_LIBRARY=/tmp/xroot/usr/share/tcltk/tcl8.6 TK_LIBRARY=/tmp/xroot/usr/share/tcltk/tk8.6 FONTCONFIG_FILE=/tmp/fonts.conf python3 test.py` (fonts.conf mit `<dir>/tmp/xroot/usr/share/fonts</dir>` + `<cachedir>/tmp/fccache</cachedir>`). Events simulieren via `widget.event_generate("<KeyPress>", keysym="r")` bzw. `event_generate("<Button-1>", x=.., y=..)` auf `tree.bbox(item)`. pygame lokal ohne Audio → `available=False`, stört nicht; pystray meckert ohne Tray („Failed to dock icon") — harmlos, wird in gui gecatcht.
 
-## 7. Weitere offene Punkte
+## 7. Weitere offene Punkte (zusätzlich als GitHub-Issues anlegen — Schreibzugriff nötig)
+
+- [ ] Issue anlegen: „Type-Ahead im Ordnerbaum funktioniert auf Windows nicht“ (siehe §5; Log auswerten, sobald vorhanden)
+
 
 - Nutzer muss noch ~97 alte Actions-Artefakte manuell löschen (Sandbox-Token darf nicht): Repo → Settings → Actions → General → Retention **1 Tag** (wirkt rückwirkend). Alte Releases werden bereits automatisch gelöscht.
 - „Titel aus Dateiname übernehmen" (v1.3.29) ist genau dafür gedacht, die durch den Pre-v1.3.20-Multi-Edit-Bug überschriebenen Titel zu reparieren: alle Tracks markieren → Rechtsklick → „Titel aus Dateiname übernehmen".

@@ -19,7 +19,7 @@ pip install -r requirements-build.txt
 pyinstaller se_player.spec --noconfirm --clean  # -> dist/SePlayer(.exe/.app)
 ```
 
-Vor **jedem** Commit prüfen: `python3 -m py_compile se_player.py seplayer/*.py` + AST-Parse + grep-Verify, dass das Patch im File ist.
+Vor **jedem** Commit nur: **`python3 tools/check.py`** (py_compile + AST + Workflow-YAML + Unit-Tests; GUI-Test nur mit DISPLAY — Rezept `tests/README.md`). Ausserdem Patch per grep im File verifizieren.
 
 ## Versioning & Releases
 
@@ -32,7 +32,8 @@ Vor **jedem** Commit prüfen: `python3 -m py_compile se_player.py seplayer/*.py`
 
 ## Arbeitsweise
 
-- Kleine, fokussierte Commits auf `main`; bei größeren Änderungen Feature-Branch + PR (Template `.github/PULL_REQUEST_TEMPLATE.md` ausfüllen, PRs in-place updaten, nie Branches/PRs anderer löschen).
+- **main bleibt immer lauffähig**: Unfertiges auf Branch `wip/<thema>`; fertiges als kleiner Commit auf `main` oder Feature-Branch + PR (Template `.github/PULL_REQUEST_TEMPLATE.md` ausfüllen, PRs in-place updaten, nie Branches/PRs anderer löschen).
+- Versionshistorie in `CHANGELOG.md`; Python-Version in `.python-version`; Requirements gepinnt.
 - Build-Artefakte (`build/`, `dist/`, `__pycache__/`) nie committen — stehen in `.gitignore`.
 - GUI-Bugs wenn möglich headless per Xvfb reproduzieren und mit `event_generate` testen — Rezept in `HANDOVER.md` §6.
 - Bekannte Fallen (nicht „fixen", sind so gewollt):
