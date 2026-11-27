@@ -2,6 +2,7 @@
 import contextlib
 import io
 import os
+import tempfile
 import time
 
 import pygame
@@ -145,9 +146,14 @@ class PlaybackEngine:
         was_paused = self.paused
         was_playing = self._playing
         self._suppress_auto = True
+        tmp = None
         try:
-            self._silent = io.BytesIO(_silent_wav_bytes())
-            pygame.mixer.music.load(self._silent)
+            pygame.mixer.music.stop()
+            # stille WAV als echte Temp-Datei (fileobj bei music.load nicht überall zuverlässig)
+            fd, tmp = tempfile.mkstemp(suffix=".wav")
+            with os.fdopen(fd, "wb") as fh:
+                fh.write(_silent_wav_bytes())
+            pygame.mixer.music.load(tmp)
             pygame.mixer.music.play()
             yield
         finally:
@@ -163,6 +169,11 @@ class PlaybackEngine:
                     self._offset = pos
                     pygame.mixer.music.pause()
                     self.paused = True
+            if tmp:
+                try:
+                    os.remove(tmp)
+                except OSError:
+                    pass
 
     def finished(self):
         """True, wenn der geladene Track von selbst zu Ende gespielt wurde."""

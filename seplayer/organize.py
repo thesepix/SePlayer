@@ -1,6 +1,7 @@
 """Auto-Organize: ausgewählte Dateien per Muster aus ihren Tags umbenennen (wie MediaMonkey)."""
 import contextlib
 import os
+import time
 import tkinter as tk
 from tkinter import messagebox, ttk
 
@@ -75,7 +76,16 @@ class AutoOrganizeDialog(tk.Toplevel):
                 n += 1
             try:
                 with self.guard(track["path"]):
-                    os.rename(track["path"], target)
+                    for attempt in range(3):
+                        try:
+                            os.rename(track["path"], target)
+                            break
+                        except OSError as exc:
+                            # WinError 32/183: noch gesperrt -> kurzer Retry
+                            if getattr(exc, "winerror", None) in (32, 183) and attempt < 2:
+                                time.sleep(0.3)
+                                continue
+                            raise
             except OSError as exc:
                 errors.append(f"{track['filename']}: {exc}")
                 continue
