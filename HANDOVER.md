@@ -1,6 +1,6 @@
 # SePlayer — Handover / Kontext für die nächste KI
 
-**Repo:** `thesepix/SePlayer` (privat) · **Aktueller Stand:** `v1.3.33` (Tag + Release vorhanden, CI grün)
+**Repo:** `thesepix/SePlayer` (**PUBLIC** — alles inkl. dieser Datei ist öffentlich sichtbar) · **Aktueller Stand:** `v1.3.33` (Tag + Release vorhanden, CI grün)
 **Projekt:** privater Desktop-Musikplayer (MediaMonkey-artig) für Windows/macOS/Linux.
 **Nutzer:** deutschsprachig, testet primär auf einem Windows-PC, auch Mac. Mag robuste Datei-Sperr-Behandlung
 (Umbenennen/Beschreiben während der Wiedergabe), versionierte Binaries (nie „welche Version teste ich gerade?"),ällt nicht gern auf CI-Benachrichtigungs-Mails und stale Exes herein.
