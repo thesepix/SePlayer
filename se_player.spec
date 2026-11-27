@@ -20,7 +20,7 @@ a = Analysis(
     hiddenimports=[
         "mutagen", "mutagen.mp3", "mutagen.flac", "mutagen.mp4",
         "mutagen.oggvorbis", "mutagen.oggopus", "mutagen.wave", "mutagen.aiff",
-        "pygame.mixer", "imageio_ffmpeg",
+        "pygame.mixer", "imageio_ffmpeg", "pystray", "pystray._win32",
     ],
     hookspath=[],
     hooksconfig={},

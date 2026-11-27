@@ -50,3 +50,14 @@ def format_size(nbytes):
 def stars_text(n):
     n = max(0, min(5, int(n)))
     return "★" * n + "☆" * (5 - n) if n else "–"
+
+
+import os
+import sys
+
+
+def resource_path(rel):
+    """Pfad zu gebündelten Assets (PyInstaller _MEIPASS bzw. Projekt-Root im Dev)."""
+    if getattr(sys, "frozen", False):
+        return os.path.join(sys._MEIPASS, rel)
+    return os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), rel)

@@ -29,7 +29,8 @@ from .convert import ConvertDialog
 from .organize import AutoOrganizeDialog
 from .preferences import PreferencesDialog
 from .properties import PropertiesDialog
-from .util import format_size, format_time, stars_text
+from .tray import start_tray
+from .util import format_size, format_time, resource_path, stars_text
 
 POLL_MS = 200
 COVER_MAX = 240
@@ -66,12 +67,6 @@ SORT_KEYS = {
     "filename": lambda t: t["filename"].lower(),
     "path": lambda t: t["path"].lower(),
 }
-
-
-def resource_path(rel):
-    if getattr(sys, "frozen", False):
-        return os.path.join(sys._MEIPASS, rel)
-    return os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), rel)
 
 
 def default_column_config():
@@ -202,6 +197,15 @@ class SePlayerApp:
         if self._state.get("autoload_last", True) and last and os.path.isdir(last):
             self.root.after(250, lambda: self._select_path_in_tree(last))
         self._tick()
+        try:
+            self.tray = start_tray(self)
+        except Exception:
+            self.tray = None
+
+    def _show_window(self):
+        self.root.deiconify()
+        self.root.lift()
+        self.root.focus_force()
 
     # ---------- Persistenz / Theme ----------
 
