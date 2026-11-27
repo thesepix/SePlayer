@@ -11,6 +11,7 @@ automatisch den \\\\?\\-Präfix; read-only-Dateien werden einmalig schreibbar ge
 import base64
 import os
 import stat
+import time
 
 from mutagen import File as MutagenFile
 from mutagen.id3 import (APIC, COMM, ID3, POPM, TALB, TCOM, TCON, TDRC, TIT2,
@@ -69,18 +70,40 @@ def _ensure_tags(audio):
 
 
 def _save_audio(audio, path):
-    try:
-        audio.save()
-        return True
-    except PermissionError:
+    """audio.save() mit Retry bei Windows-Sperre (WinError 32) und read-only-Attribut."""
+    last_exc = None
+    for attempt in range(3):
         try:
-            os.chmod(path, stat.S_IWRITE)
             audio.save()
             return True
+        except PermissionError as exc:
+            last_exc = exc
+            try:
+                os.chmod(path, stat.S_IWRITE)
+            except OSError:
+                pass
+            time.sleep(0.3)
         except Exception as exc:
             return _err(exc)
-    except Exception as exc:
-        return _err(exc)
+    return _err(last_exc)
+
+
+def _save_tag(tag, path):
+    """ID3-Tag speichern, mit Retry bei Sperre."""
+    last_exc = None
+    for attempt in range(3):
+        try:
+            return _save_tag(tag, path)
+        except PermissionError as exc:
+            last_exc = exc
+            try:
+                os.chmod(path, stat.S_IWRITE)
+            except OSError:
+                pass
+            time.sleep(0.3)
+        except Exception as exc:
+            return _err(exc)
+    return _err(last_exc)
 
 
 def is_audio_file(path):
