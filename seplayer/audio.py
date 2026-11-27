@@ -21,7 +21,7 @@ _SILENT_WAV = None
 
 
 def _silent_wav_bytes():
-    """~50 ms stille WAV (8 kHz, 8-bit, mono) als Bytes — zum kurzzeitigen Freigeben von Datei-Handles."""
+    """20 ms stille WAV (8 kHz, 8-bit, mono) als Bytes — zum kurzzeitigen Freigeben von Datei-Handles."""
     global _SILENT_WAV
     if _SILENT_WAV is None:
         import wave
@@ -152,7 +152,7 @@ class PlaybackEngine:
     def free_file(self, path, new_path=None):
         """Windows-Sperre umgehen (WinError 32 beim Umbenennen/Beschreiben der spielenden Datei).
 
-        Wenn `path` gerade geladen ist: ~50 ms stille WAV abspielen (SDL gibt damit das
+        Wenn `path` gerade geladen ist: 20 ms stille WAV abspielen (SDL gibt damit das
         Datei-Handle frei), dann `yield` (Datei darf jetzt umbenannt/beschrieben werden),
         danach `path` ab der letzten Position weiter abspielen. Sonst einfach durchreichen.
         """

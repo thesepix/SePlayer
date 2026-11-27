@@ -63,7 +63,7 @@ Desktop-Musikplayer für **Windows, macOS und Linux** — geschrieben in Python 
 - Rechtsklick auf einen Titel → **„Im Explorer/Finder öffnen"** (Windows: Explorer mit markierter
   Datei, macOS: Finder, Linux: Dateimanager)
 - **Umbenennen/Beschreiben während der Wiedergabe** (Windows-Sperre WinError 32): die spielende Datei
-  wird für ~50 ms durch eine stille WAV ersetzt (Handle wird freigegeben), dann umbenannt/beschrieben
+  wird für 20 ms durch eine stille WAV ersetzt (Handle wird freigegeben), dann umbenannt/beschrieben
   und ab letzter Position weiter abgespielt
 - **Auto-Organize (Umbenennen per Muster)** wie in MediaMonkey: Rechtsklick → „Auto-Organize: umbenennen …",
   Muster z. B. `## - artist - title` (`##` = Track-Nr. zweistellig, `#` = Track-Nr., `<feld>` oder
@@ -114,17 +114,19 @@ fertige Dateien pro System:
 - **Linux:** `SePlayer-linux-vX.Y.Z` — `chmod +x SePlayer-linux-vX.Y.Z && ./SePlayer-linux-vX.Y.Z`
   (braucht glibc, auf den meisten Distributionen vorhanden)
 
-Die Binaries werden bei jedem Push automatisch per **GitHub Actions** gebaut (als Artefakte des
-Workflow-Runs, Dateiname enthält die Version: Tag-Name `v1.3.2` bzw. `dev-<commit>`). Ein Tag `v...`
-(z. B. `git tag v1.3.2 && git push origin v1.3.2`) veröffentlicht zusätzlich ein **Release** mit allen
-drei versionierten Dateien als Download. Die Version steht außerdem in `seplayer/__init__.py`
-(`__version__`) und wird im Fenstertitel sowie unter *Hilfe → Über* angezeigt.
+Die Binaries werden automatisch per **GitHub Actions** gebaut: bei jedem Push auf `main` als
+Workflow-Artefakte (Retention 3 Tage, Dateiname `dev-<commit>`) und bei jedem Tag `vX.Y.Z`
+(z. B. `git tag v1.3.33 && git push origin v1.3.33`) als **Release** mit allen drei versionierten
+Dateien (`SePlayer-vX.Y.Z.exe` / `.dmg` / `SePlayer-linux-vX.Y.Z`) unter
+https://github.com/thesepix/SePlayer/releases — ältere Releases werden automatisch gelöscht
+(nur das neueste bleibt). Die Version steht außerdem in `seplayer/__init__.py` (`__version__`)
+und wird im **Fenstertitel** sowie unter *Hilfe → Über* angezeigt.
 
-Ein manuelles „Run workflow“ im Actions-Tab ist **nicht nötig**: Der Workflow „Binaries bauen“ startet bei jedem Push auf `main` und bei jedem Tag `v*` von allein. Fertige Downloads liegen unter **Releases** → https://github.com/thesepix/SePlayer/releases (Dateiname enthält die Version, z. B. `SePlayer-v1.3.28.exe` / `.dmg`).
+Ein manuelles „Run workflow“ im Actions-Tab ist **nicht nötig**: Der Workflow „Binaries bauen“ startet bei jedem Push auf `main` und bei jedem Tag `v*` von allein. Fertige Downloads liegen unter **Releases** → https://github.com/thesepix/SePlayer/releases (Dateiname enthält die Version, z. B. `SePlayer-v1.3.33.exe` / `.dmg`).
 
 ## Entwicklung: Voraussetzungen & Start mit Python
 
-- Python 3.10 oder neuer — auf dem Mac am besten von https://www.python.org/downloads/
+- Python 3.12 (`.python-version`; CI baut mit 3.12) — auf dem Mac am besten von https://www.python.org/downloads/
   (diese Installation bringt tkinter und pip mit; das macOS-System-python3 hat teils kein tkinter)
 - Ein Ausgabegerät (Soundkarte) — logisch notwendig zum Abspielen
 
@@ -170,19 +172,33 @@ pyinstaller se_player.spec --noconfirm --clean
 seplayer/  (Repo)
 ├── se_player.py                 # Startpunkt
 ├── se_player.spec               # PyInstaller-Spec (fertige Binaries: exe/app/linux)
-├── requirements.txt             # Laufzeit-Abhängigkeiten (pygame, mutagen, Pillow)
-├── requirements-build.txt       # Build-Abhängigkeiten (PyInstaller)
-├── .github/workflows/build.yml  # automatischer Binary-Build (exe / dmg / linux)
-├── README.md
+├── requirements.txt             # Laufzeit-Dependencies, gepinnt (pygame, mutagen, Pillow, pystray, imageio-ffmpeg)
+├── requirements-build.txt       # Build-Dependencies, gepinnt (PyInstaller)
+├── .python-version              # Python 3.12
+├── .editorconfig                # UTF-8, LF, 4 Spaces
+├── .github/workflows/build.yml  # automatischer Binary-Build + Releases (exe / dmg / linux)
+├── .github/PULL_REQUEST_TEMPLATE.md + .github/ISSUE_TEMPLATE/   # PR-/Issue-Vorlagen
+├── README.md                    # Doku: Funktionen, Installation, Bedienung
+├── AGENTS.md                    # Kurzregeln für KI-Agenten
+├── CONTRIBUTING.md              # Setup, Entwicklung, PR-Prozess
+├── HANDOVER.md                 # Projekt-Kontext für Übergabe (Zustand, offene Punkte, Fallen)
+├── CHANGELOG.md                 # Versionshistorie
+├── LICENSE                      # GPL-3.0
+├── tools/check.py               # Ein-Kommando-Check vor jedem Commit (Syntax + AST + YAML + Tests)
+├── tests/                       # Unit-Tests + headless GUI-Test (Xvfb-Rezept in tests/README.md)
 └── seplayer/
-    ├── __init__.py
-    ├── audio.py                 # Wiedergabe-Engine (pygame.mixer)
-    ├── tags.py                  # Tags lesen/schreiben, Rating-Felder (POPM, RATING MM, RATING, RATING WMP …), Cover
-    ├── state.py                 # gemerkter Zustand (state.json: Fenster, letzter Ordner, Favoriten, Spalten, Theme)
+    ├── __init__.py              # __version__
+    ├── audio.py                 # Wiedergabe-Engine (pygame.mixer; SDL-Dummy in gepackten Builds; free_file-Guard)
+    ├── tags.py                  # Tags/Ratings/Cover lesen+schreiben (POPM, RATING MM, RATING, RATING WMP, RIFF-INFO)
+    ├── state.py                 # state.json (Fenster, letzter Ordner, Favoriten, Spalten, Theme …)
     ├── theme.py                 # Farbschema Hell/Dunkel
-    ├── preferences.py           # Einstellungen-Dialog
-    ├── organize.py              # Auto-Organize: Dateien per Muster umbenennen (Vorschau)
-    ├── properties.py            # Eigenschaften-Dialog (Tags/Details/Bewertungsfelder/Cover, Mehrfachauswahl)
-    ├── util.py                  # Format-Helfer + Dateinamen-Muster
-    └── gui.py                   # tkinter-Oberfläche (Favoriten, Baum, Cover, Liste, Player-Leiste)
+    ├── util.py                  # Dateinamen-Muster, title_from_filename, Format-Helfer
+    ├── gui.py                   # tkinter-Oberfläche (Favoriten, Baum, Liste, Player, Type-Ahead, Kontextmenü)
+    ├── search.py                # Suche (Strg+F)
+    ├── properties.py            # Eigenschaften-Dialog (Mehrfachauswahl)
+    ├── organize.py              # Auto-Organize (Umbenennen per Muster)
+    ├── convert.py               # WAV→FLAC/MP3 (ffmpeg)
+    ├── preferences.py           # Einstellungen
+    ├── tray.py                  # Tray-Icon (pystray)
+    └── assets/                  # S-Icon (png/ico)
 ```
