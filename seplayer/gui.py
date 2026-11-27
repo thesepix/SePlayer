@@ -305,7 +305,8 @@ class SePlayerApp:
         ttk.Button(fav_btns, text="– entfernen", width=10, command=self._fav_remove).pack(side=tk.LEFT, padx=2)
         self.left_pane.add(fav_frame, weight=0)
 
-        tree_frame = ttk.LabelFrame(self.left_pane, text="Ordner")
+        self.tree_frame = ttk.LabelFrame(self.left_pane, text="Ordner")
+        tree_frame = self.tree_frame
         self.tree = ttk.Treeview(tree_frame, show="tree")
         tree_scroll = ttk.Scrollbar(tree_frame, orient=tk.VERTICAL, command=self.tree.yview)
         self.tree.configure(yscrollcommand=tree_scroll.set)
@@ -637,12 +638,17 @@ class SePlayerApp:
             if getattr(self, "_type_timer", None):
                 self.root.after_cancel(self._type_timer)
             self._type_timer = self.root.after(900, self._clear_type_buf)
+            self.tree_frame.config(text=f"Ordner  \u201e{self._type_buf}\u201c")
             self._tree_typeahead()
             return "break"
 
     def _clear_type_buf(self):
         self._type_buf = ""
         self._type_timer = None
+        try:
+            self.tree_frame.config(text="Ordner")
+        except Exception:
+            pass
 
     def _find_typeahead(self, node, needle):
         """Ersten sichtbaren Kindknoten finden, dessen Name (case-insensitive) mit needle beginnt."""
@@ -692,16 +698,23 @@ class SePlayerApp:
             self.tree.see(target)
             if not self.tree.item(target, "open"):
                 self.tree.item(target, open=True)
-        if target is None and getattr(self, "folder", None) and os.path.isdir(self.folder):
-            # Fallback: direkt im Dateisystem des angezeigten Ordners suchen
-            try:
-                for entry in sorted(os.listdir(self.folder)):
-                    full = os.path.join(self.folder, entry)
-                    if entry.lower().startswith(needle) and os.path.isdir(full):
-                        self._select_path_in_tree(full)
-                        return
-            except OSError:
-                pass
+        if target is None:
+            # Fallback: direkt im Dateisystem des aktuellen Ordners suchen
+            base = getattr(self, "folder", None)
+            if not base:
+                selection = self.tree.selection()
+                if selection:
+                    values = self.tree.item(selection[0], "values")
+                    base = values[0] if values else None
+            if base and os.path.isdir(base):
+                try:
+                    for entry in sorted(os.listdir(base)):
+                        full = os.path.join(base, entry)
+                        if entry.lower().startswith(needle) and os.path.isdir(full):
+                            self._select_path_in_tree(full)
+                            return
+                except OSError:
+                    pass
 
     # ---------- Favoriten ----------
 
