@@ -273,7 +273,7 @@ def read_metadata(path):
         "ext": os.path.splitext(path)[1].lstrip(".").lower(),
         "path": path,
     })
-    meta["title"] = os.path.splitext(meta["filename"])[0]
+    meta["title"] = ""  # Fallback auf Dateinamen erst ganz am Ende
     try:
         meta["size"] = os.path.getsize(path)
     except OSError:
@@ -293,8 +293,6 @@ def read_metadata(path):
         if tags is not None:
             for field in TEXT_FIELDS:
                 meta[field] = _read_text(tags, field)
-            if not meta["title"]:
-                meta["title"] = os.path.splitext(meta["filename"])[0]
             meta["year"] = meta["year"][:4]
             meta["track"] = meta["track"].split("/")[0]
             meta["disc"] = meta["disc"].split("/")[0]
@@ -309,6 +307,8 @@ def read_metadata(path):
             meta["year"] = meta["year"][:4]
             meta["track"] = meta["track"].split("/")[0]
             meta["disc"] = meta["disc"].split("/")[0]
+    if not meta["title"]:
+        meta["title"] = os.path.splitext(meta["filename"])[0]
     meta["rating"] = read_rating(path)
     return meta
 
