@@ -467,6 +467,8 @@ class SePlayerApp:
         # Doppelverarbeitung wird ueber die Event-Serial verhindert
         for w in (self.tree, self.listbox, self.fav_list):
             w.bind("<KeyPress>", self._on_global_key, add="+")
+        self.root.bind("<KeyPress>", self._on_global_key, add="+")  # dritte Ebene: Toplevel
+        self._debug_log("init: KeyPress gebunden auf bind_all + root + tree/listbox/fav_list")
         self.fav_list.bind("<ButtonRelease-1>", self._on_fav_select)
         self.listbox.bind("<<TreeviewSelect>>", lambda _e: self._update_cover())
         self.listbox.bind("<Double-1>", self._on_play_selected)
@@ -644,34 +646,61 @@ class SePlayerApp:
 
     # ---------- Type-Ahead im Ordnerbaum (Buchstaben tippen -> springen) ----------
 
+    def _debug_log(self, msg):
+        """Type-Ahead-Diagnose: eine Zeile pro Ereignis nach <Config>/SePlayer/typeahead.log
+        (Windows: %APPDATA%/SePlayer/typeahead.log). Datei wird bei >512 KB geleert."""
+        try:
+            from time import strftime
+            path = os.path.join(statelib.config_dir(), "typeahead.log")
+            try:
+                if os.path.getsize(path) > 512 * 1024:
+                    with open(path, "w", encoding="utf-8"):
+                        pass
+            except OSError:
+                pass
+            with open(path, "a", encoding="utf-8") as fh:
+                fh.write(f"{strftime('%H:%M:%S')} {msg}\n")
+        except Exception:
+            pass
+
     def _on_global_key(self, event):
-        """Globaler Type-Ahead (bind_all): je nach Fokus-Widget springen.
+        """Globaler Type-Ahead (bind_all + root + Widgets, Dedupe per Event-Serial).
 
         Fokus im Ordnerbaum -> naechster Ordner mit den getippten Buchstaben,
         in der Titelliste -> naechster Titel, in den Favoriten -> naechster Favorit.
         Textfelder (Inline-Editor) und Dialoge (andere Toplevels) werden nicht abgefangen.
-        """
+        Jeder Schritt wird ins typeahead.log geschrieben (Diagnose)."""
         if getattr(self, "_last_key_serial", None) == getattr(event, "serial", None):
-            return  # derselbe Tastendruck kam schon ueber das Widget-Binding herein
+            return  # derselbe Tastendruck kam schon ueber ein anderes Binding herein
         self._last_key_serial = getattr(event, "serial", None)
         focus_w = self.root.focus_get()
+        ch = event.char or ""
+        if not ch:
+            ks = getattr(event, "keysym", "") or ""
+            if len(ks) == 1:
+                ch = ks  # Fallback: char leer, aber keysym ein einzelnes Zeichen
         if focus_w is None:
-            focus_w = self.tree  # kein Fokus gemeldet -> als Ordnerbaum behandeln
+            self._debug_log(f"key={ch!r} keysym={getattr(event, 'keysym', '')!r} focus=None -> behandle als Baum")
+            focus_w = self.tree
         elif focus_w.winfo_toplevel() is not self.root:
-            return  # Dialog offen
-        if isinstance(focus_w, (tk.Entry, ttk.Entry, tk.Text, tk.Spinbox,
-                                ttk.Combobox, ttk.Spinbox)):
+            self._debug_log(f"key={ch!r} ignoriert: anderes Toplevel {type(focus_w).__name__} hat Fokus")
             return
-        if event.char == " ":
+        elif isinstance(focus_w, (tk.Entry, ttk.Entry, tk.Text, tk.Spinbox,
+                                  ttk.Combobox, ttk.Spinbox)):
+            self._debug_log(f"key={ch!r} ignoriert: Textfeld {type(focus_w).__name__} hat Fokus")
+            return
+        if ch == " ":
             return
         if event.state & 0x4 or event.state & 0x8:  # Strg/Alt nicht abfangen
+            self._debug_log(f"key={ch!r} state={event.state:#x} ignoriert (Strg/Alt)")
             return
-        if len(event.char) == 1 and event.char.isprintable():
-            self._type_buf = getattr(self, "_type_buf", "") + event.char.lower()
+        if ch and len(ch) == 1 and ch.isprintable():
+            self._debug_log(f"key={ch!r} focus={type(focus_w).__name__} state={event.state:#x} -> typeahead buf")
+            self._type_buf = getattr(self, "_type_buf", "") + ch.lower()
             if getattr(self, "_type_timer", None):
                 self.root.after_cancel(self._type_timer)
             self._type_timer = self.root.after(900, self._clear_type_buf)
-            self.tree_frame.config(text=f"Ordner  „{self._type_buf}“")
+            self.tree_frame.config(text=f"Ordner  \u201e{self._type_buf}\u201c")
             if focus_w is self.listbox:
                 self._list_typeahead()
             elif focus_w is self.fav_list:
@@ -748,6 +777,10 @@ class SePlayerApp:
                     target = self._find_typeahead(root, needle)
                     if target:
                         break
+        def _txt(n):
+            return self.tree.item(n, "text") if n else None
+        self._debug_log(f"typeahead buf={needle!r} start={_txt(start)!r} target={_txt(target)!r} "
+                        f"folder={getattr(self, 'folder', None)!r}")
         if target:
             self.tree.selection_set(target)
             self.tree.focus(target)
@@ -956,6 +989,7 @@ class SePlayerApp:
         values = self.tree.item(selection[0], "values")
         path = values[0] if values else ""
         if path and os.path.isdir(path):
+            self._debug_log(f"tree select: {path}")
             self._ensure_populated(selection[0])
             self.load_folder(path)
 
