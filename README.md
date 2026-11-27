@@ -2,6 +2,13 @@
 
 Desktop-Musikplayer für **Windows, macOS und Linux** — geschrieben in Python (tkinter-GUI + pygame-Audio). Als fertige Datei (exe/dmg/Linux-Binary) startbar **ohne Python-Installation**.
 
+## Für Entwickler & KI-Agenten
+
+- [AGENTS.md](AGENTS.md) — Kurzregeln für KI-Agenten (Build, Tests, Release-Flow)
+- [HANDOVER.md](HANDOVER.md) — vollständiger Projekt-Kontext, Historie, offene Punkte
+- [CONTRIBUTING.md](CONTRIBUTING.md) — Setup, Entwicklung, PR-Prozess
+- Lizenz: GPL-3.0 (s. LICENSE)
+
 ## Funktionen
 
 - **Folder-basierter Datei-Browser:** links ein aufklappbarer Ordner-Baum der Festplatte

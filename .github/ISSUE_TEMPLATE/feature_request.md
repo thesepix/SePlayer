@@ -1,0 +1,13 @@
+---
+name: Feature request
+about: Idee / Wunsch für eine Funktion
+labels: enhancement
+---
+
+**Problem / Use-Case:** …
+
+**Gewünschte Lösung:** …
+
+**Alternativen:** …
+
+**Zusatzkontext (Screenshots, Referenzen z. B. MediaMonkey):** …
