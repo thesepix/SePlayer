@@ -543,11 +543,13 @@ class SePlayerApp:
             return
         self._cancel_pending_edit()
         if ids[index] == "rating":
-            bbox = self.listbox.bbox(row, "rating")
-            if bbox:
-                frac = (event.x - bbox[0]) / max(1, bbox[2])
-                stars = min(5, max(1, int(frac * 5) + 1))
-                self._set_rating(stars)
+            # Sterne per Klick nur bei Einfachauswahl; bei Mehrfachauswahl über Rechtsklick-Menü
+            if len(self._selected_indices()) <= 1:
+                bbox = self.listbox.bbox(row, "rating")
+                if bbox:
+                    frac = (event.x - bbox[0]) / max(1, bbox[2])
+                    stars = min(5, max(1, int(frac * 5) + 1))
+                    self._set_rating(stars)
             return
         field = EDITABLE_COLUMNS.get(ids[index])
         if field is None:
