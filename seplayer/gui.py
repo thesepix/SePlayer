@@ -418,6 +418,10 @@ class SePlayerApp:
     def _bind_events(self):
         self.tree.bind("<<TreeviewOpen>>", self._on_tree_open)
         self.tree.bind("<<TreeviewSelect>>", self._on_tree_select)
+        self.tree.bind("<Button-1>", lambda _e: self.tree.focus_set(), add="+")
+        # Type-Ahead am Root binden, damit Tippen egal welcher Bereich den Fokus hat,
+        # im Ordnerbaum landet (nur nicht im Zellen-Editor/Entry)
+        self.root.bind("<KeyPress>", self._on_tree_key, add="+")
         self.fav_list.bind("<ButtonRelease-1>", self._on_fav_select)
         self.listbox.bind("<<TreeviewSelect>>", lambda _e: self._update_cover())
         self.listbox.bind("<Double-1>", self._on_play_selected)
@@ -583,6 +587,77 @@ class SePlayerApp:
         node = self.tree.insert(parent, "end", text=name, values=(path,), open=False)
         self.tree.insert(node, "end", text="…", values=("",))
         return node
+
+    # ---------- Type-Ahead im Ordnerbaum (Buchstaben tippen -> springen) ----------
+
+    def _on_tree_key(self, event):
+        focus_w = self.root.focus_get()
+        if isinstance(focus_w, tk.Entry):
+            return
+        if event.char == " ":
+            return
+        if event.state & 0x4 or event.state & 0x8:  # Strg/Alt nicht abfangen
+            return
+        if len(event.char) == 1 and event.char.isprintable():
+            self._type_buf = getattr(self, "_type_buf", "") + event.char.lower()
+            if getattr(self, "_type_timer", None):
+                self.root.after_cancel(self._type_timer)
+            self._type_timer = self.root.after(900, self._clear_type_buf)
+            self._tree_typeahead()
+            return "break"
+
+    def _clear_type_buf(self):
+        self._type_buf = ""
+        self._type_timer = None
+
+    def _find_typeahead(self, node, needle):
+        """Ersten sichtbaren Kindknoten finden, dessen Name (case-insensitive) mit needle beginnt."""
+        for child in self.tree.get_children(node):
+            name = (self.tree.item(child, "text") or "").lower()
+            if name.startswith(needle):
+                return child
+            if self.tree.item(child, "open"):
+                found = self._find_typeahead(child, needle)
+                if found:
+                    return found
+        return None
+
+    def _tree_typeahead(self):
+        needle = getattr(self, "_type_buf", "")
+        if not needle:
+            return
+        start = self.tree.focus()
+        if not start and self.tree.selection():
+            start = self.tree.selection()[0]
+        target = self._find_typeahead(start, needle) if start else None
+        if target is None:
+            for root in self.tree.get_children(""):
+                if root == start:
+                    continue
+                name = (self.tree.item(root, "text") or "").lower()
+                if name.startswith(needle):
+                    target = root
+                    break
+                if self.tree.item(root, "open"):
+                    target = self._find_typeahead(root, needle)
+                    if target:
+                        break
+        if target is None:  # Wrap-Around: nochmal ab dem ersten Root
+            for root in self.tree.get_children(""):
+                name = (self.tree.item(root, "text") or "").lower()
+                if name.startswith(needle):
+                    target = root
+                    break
+                if self.tree.item(root, "open"):
+                    target = self._find_typeahead(root, needle)
+                    if target:
+                        break
+        if target:
+            self.tree.selection_set(target)
+            self.tree.focus(target)
+            self.tree.see(target)
+            if not self.tree.item(target, "open"):
+                self.tree.item(target, open=True)
 
     # ---------- Favoriten ----------
 
