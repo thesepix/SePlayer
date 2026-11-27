@@ -88,7 +88,7 @@ jobs:
         run: |
           CURRENT="${{ github.ref_name }}"
           gh api "repos/${{ github.repository }}/releases?per_page=100" \
-            --jq --arg cur "$CURRENT" '.[] | select(.tag_name != $cur) | .id' \
+            --jq ".[] | select(.tag_name != \"$CURRENT\") | .id" \
             | while read -r id; do
                 echo "lösche Release $id"; gh api -X DELETE "repos/${{ github.repository }}/releases/$id" || echo "delete $id fehlgeschlagen"
               done
