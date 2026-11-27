@@ -82,12 +82,13 @@ jobs:
       - name: Alte Releases aufraeumen (nur aktuelles Tag behalten)
         if: startsWith(github.ref, 'refs/tags/')
         shell: bash
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           CURRENT="${{ github.ref_name }}"
-          gh release list --limit 50 --json databaseId,tagName \
-            | jq -r --arg cur "$CURRENT" '.[] | select(.tagName != $cur) | .databaseId' \
+          gh api "repos/${{ github.repository }}/releases?per_page=100" \
+            --jq --arg cur "$CURRENT" '.[] | select(.tag_name != $cur) | .id' \
             | while read -r id; do
                 gh api -X DELETE "repos/${{ github.repository }}/releases/$id" || true
               done
