@@ -33,6 +33,26 @@ def apply_filename_pattern(pattern, meta, fallback_index=1):
     return result
 
 
+def title_from_filename(filename):
+    """Titel heuristisch aus dem Dateinamen gewinnen (Reparatur-Funktion).
+
+    Gedacht fuer Dateien, die per Auto-Organize mit Muster `## - artist - title`
+    umbenannt wurden: eine fuehrende Tracknummer und ein fuehrender `Artist - `-Anteil
+    werden abgeschnitten.
+      '02 - krugah - upful light.mp3' -> 'upful light'
+      '07 - upful light.flac'         -> 'upful light'
+      '1. Intro.mp3'                  -> 'Intro'
+      'Mein Song.mp3'                 -> 'Mein Song'
+      '99 Luftballons.mp3'            -> '99 Luftballons' (Zahl ohne Trennzeichen bleibt Titel)
+    """
+    base = os.path.splitext(os.path.basename(filename))[0].strip()
+    stripped = re.sub(r"^\d{1,3}\s*(?:[-\u2013\u2014]\s*|[._]\s+)", "", base)
+    if " - " in stripped:
+        stripped = stripped.split(" - ", 1)[1]
+    stripped = stripped.strip(" .")
+    return stripped or base
+
+
 def format_time(seconds):
     seconds = max(0, int(seconds))
     return f"{seconds // 60:02d}:{seconds % 60:02d}"

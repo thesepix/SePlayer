@@ -29,8 +29,9 @@ from .convert import ConvertDialog
 from .organize import AutoOrganizeDialog
 from .preferences import PreferencesDialog
 from .properties import PropertiesDialog
+from .search import SearchDialog
 from .tray import start_tray
-from .util import format_size, format_time, resource_path, stars_text
+from .util import format_size, format_time, resource_path, stars_text, title_from_filename
 
 POLL_MS = 200
 COVER_MAX = 240
@@ -273,6 +274,7 @@ class SePlayerApp:
         view_menu.add_command(label="Spalten anpassen …", command=self._open_column_dialog)
         view_menu.add_command(label="Spalten zurücksetzen", command=self._reset_columns)
         view_menu.add_command(label="Aktuellen Ordner als Favorit pinnen", command=self._fav_add)
+        view_menu.add_command(label="Suchen \u2026 (Strg+F)", command=self._open_search)
         view_menu.add_separator()
         view_menu.add_command(label="Einstellungen …", command=self._open_preferences)
         menubar.add_cascade(label="Ansicht", menu=view_menu)
@@ -457,10 +459,10 @@ class SePlayerApp:
         self.tree.bind("<<TreeviewOpen>>", self._on_tree_open)
         self.tree.bind("<<TreeviewSelect>>", self._on_tree_select)
         self.tree.bind("<Button-1>", lambda _e: self.tree.focus_set(), add="+")
-        # Type-Ahead direkt auf die Widgets binden (Widget-Bindings laufen VOR den
-        # Klassen-Bindings; ein Root-Binding würde von der Treeview-Klasse gebrochen)
-        for w in (self.tree, self.listbox, self.fav_list):
-            w.bind("<KeyPress>", self._on_tree_key, add="+")
+        # Type-Ahead GLOBAL binden (bind_all): faengt Tastendruecke zuverlaessig ab, egal
+        # welches Widget den Fokus hat (reine Widget-Bindings wurden auf manchen Systemen
+        # vom Treeview-Klassen-Binding verdraengt). Textfelder und Dialoge sind ausgenommen.
+        self.root.bind_all("<KeyPress>", self._on_global_key, add="+")
         self.fav_list.bind("<ButtonRelease-1>", self._on_fav_select)
         self.listbox.bind("<<TreeviewSelect>>", lambda _e: self._update_cover())
         self.listbox.bind("<Double-1>", self._on_play_selected)
@@ -479,6 +481,7 @@ class SePlayerApp:
         self.root.bind("<space>", lambda _e: self.toggle_play())
         self.root.bind("<Right>", lambda _e: self.play_next())
         self.root.bind("<Left>", lambda _e: self.play_previous())
+        self.root.bind("<Control-f>", lambda _e: self._open_search())
 
     def _on_list_press(self, event):
         self._press_region = self.listbox.identify_region(event.x, event.y)
@@ -637,9 +640,20 @@ class SePlayerApp:
 
     # ---------- Type-Ahead im Ordnerbaum (Buchstaben tippen -> springen) ----------
 
-    def _on_tree_key(self, event):
+    def _on_global_key(self, event):
+        """Globaler Type-Ahead (bind_all): je nach Fokus-Widget springen.
+
+        Fokus im Ordnerbaum -> naechster Ordner mit den getippten Buchstaben,
+        in der Titelliste -> naechster Titel, in den Favoriten -> naechster Favorit.
+        Textfelder (Inline-Editor) und Dialoge (andere Toplevels) werden nicht abgefangen.
+        """
         focus_w = self.root.focus_get()
-        if isinstance(focus_w, tk.Entry):
+        if focus_w is None:
+            return
+        if focus_w.winfo_toplevel() is not self.root:
+            return  # Dialog offen
+        if isinstance(focus_w, (tk.Entry, ttk.Entry, tk.Text, tk.Spinbox,
+                                ttk.Combobox, ttk.Spinbox)):
             return
         if event.char == " ":
             return
@@ -650,9 +664,13 @@ class SePlayerApp:
             if getattr(self, "_type_timer", None):
                 self.root.after_cancel(self._type_timer)
             self._type_timer = self.root.after(900, self._clear_type_buf)
-            self.tree_frame.config(text=f"Ordner  \u201e{self._type_buf}\u201c")
-            self._tree_typeahead()
-            return "break"
+            self.tree_frame.config(text=f"Ordner  „{self._type_buf}“")
+            if focus_w is self.listbox:
+                self._list_typeahead()
+            elif focus_w is self.fav_list:
+                self._fav_typeahead()
+            else:
+                self._tree_typeahead()
 
     def _clear_type_buf(self):
         self._type_buf = ""
@@ -681,7 +699,24 @@ class SePlayerApp:
         start = self.tree.focus()
         if not start and self.tree.selection():
             start = self.tree.selection()[0]
-        target = self._find_typeahead(start, needle) if start else None
+        target = None
+        if start:
+            # 1) Geschwister des aktuellen Knotens zuerst (typischer Fall:
+            #    grosser Ordner mit vielen Unterordnern -> naechster Unterordner)
+            parent = self.tree.parent(start)
+            siblings = list(self.tree.get_children(parent))
+            if start in siblings:
+                idx = siblings.index(start)
+                ordered = siblings[idx + 1:] + siblings[:idx + 1]
+            else:
+                ordered = siblings
+            for sib in ordered:
+                if (self.tree.item(sib, "text") or "").lower().startswith(needle):
+                    target = sib
+                    break
+            # 2) danach die Kinder des aktuellen Knotens
+            if target is None:
+                target = self._find_typeahead(start, needle)
         if target is None:
             for root in self.tree.get_children(""):
                 if root == start:
@@ -727,6 +762,41 @@ class SePlayerApp:
                             return
                 except OSError:
                     pass
+
+    def _list_typeahead(self):
+        """Type-Ahead in der Titelliste: naechster Titel/Dateiname, der mit dem Puffer beginnt."""
+        needle = getattr(self, "_type_buf", "")
+        if not needle or not self.tracks:
+            return
+        sel = self.listbox.selection()
+        cur = int(sel[0]) if sel else -1
+        n = len(self.tracks)
+        for k in range(1, n + 1):
+            i = (cur + k) % n
+            t = self.tracks[i]
+            hay = (t.get("title") or t.get("filename") or "").lower()
+            if hay.startswith(needle):
+                self.listbox.selection_clear(0, tk.END)
+                self.listbox.selection_set(str(i))
+                self.listbox.see(str(i))
+                self.listbox.focus(str(i))
+                return
+
+    def _fav_typeahead(self):
+        """Type-Ahead in den Favoriten: naechster Favorit, der mit dem Puffer beginnt."""
+        needle = getattr(self, "_type_buf", "")
+        items = list(self.fav_list.get(0, tk.END))
+        if not needle or not items:
+            return
+        cur = self.fav_list.curselection()
+        start = cur[0] if cur else -1
+        for k in range(1, len(items) + 1):
+            i = (start + k) % len(items)
+            if items[i].lower().startswith(needle):
+                self.fav_list.selection_clear(0, tk.END)
+                self.fav_list.selection_set(i)
+                self.fav_list.see(i)
+                return
 
     # ---------- Favoriten ----------
 
@@ -1154,6 +1224,8 @@ class SePlayerApp:
         menu.add_command(label=f"Eigenschaften … ({len(indices)} Datei(en))", command=self._open_properties)
         menu.add_command(label=f"Auto-Organize: umbenennen … ({len(indices)} Datei(en))",
                          command=self._open_auto_organize)
+        menu.add_command(label=f"Titel aus Dateiname übernehmen ({len(indices)} Datei(en))",
+                         command=self._title_from_filename)
         menu.add_command(label=f"Konvertieren nach … ({len(indices)} Datei(en))",
                          command=self._open_convert)
         menu.add_command(label="Im Explorer/Finder öffnen", command=self._show_in_file_manager)
@@ -1190,6 +1262,70 @@ class SePlayerApp:
         else:
             self._fill_list()
             self._update_cover()
+
+    def _title_from_filename(self):
+        """Titel-Tag aus dem Dateinamen setzen (z. B. '02 - Artist - Titel.mp3' -> 'Titel').
+
+        Reparatur-Funktion: wirkt auf ALLE markierten Dateien, schreibt nur, wenn sich
+        der Titel wirklich aendert, und respektiert die Windows-Dateisperre (free_file).
+        """
+        indices = self._selected_indices()
+        if not indices:
+            return
+        changed = []
+        failed = []
+        for index in indices:
+            if not (0 <= index < len(self.tracks)):
+                continue
+            track = self.tracks[index]
+            new_title = title_from_filename(track["filename"])
+            old_title = track.get("title") or ""
+            if not new_title or new_title == old_title:
+                continue
+            with self.engine.free_file(track["path"]):
+                ok = taglib.write_metadata(track["path"], {"title": new_title})
+            if ok:
+                changed.append(f"{track['filename']}: „{old_title}“ → „{new_title}“")
+                track["title"] = new_title
+                self.listbox.item(str(index), values=self._row_values(index))
+            else:
+                err = getattr(taglib, "last_error", None)
+                failed.append(f"{track['filename']} ({err})" if err else track["filename"])
+        if changed:
+            self._update_cover()
+            lines = changed if len(changed) <= 12 else changed[:12] + [f"… und {len(changed) - 12} weitere"]
+            messagebox.showinfo("Titel aus Dateiname übernommen",
+                                f"{len(changed)} Datei(en) aktualisiert:\n\n" + "\n".join(lines))
+        if failed:
+            messagebox.showerror("Fehler", "Titel konnte nicht geschrieben werden bei:\n"
+                                           + "\n".join(failed[:10]))
+        if not changed and not failed:
+            messagebox.showinfo("Titel aus Dateiname übernommen",
+                                "Keine Änderung nötig — die Titel stimmen bereits mit den Dateinamen überein.")
+
+    def _open_search(self):
+        base = self.folder or (self._state.get("last_folder") or "")
+        SearchDialog(self.root, self, base)
+
+    def goto_track(self, path, play=True):
+        """Springt im Baum zur Datei `path`, laedt deren Ordner und spielt sie optional ab."""
+        path = os.path.abspath(path)
+        folder = os.path.dirname(path)
+        if os.path.isdir(folder):
+            self.load_folder(folder)
+            self._select_path_in_tree(folder)
+        target = None
+        for i, t in enumerate(self.tracks):
+            if os.path.abspath(t["path"]) == path:
+                target = i
+                break
+        if target is not None:
+            self.listbox.selection_clear(0, tk.END)
+            self.listbox.selection_set(str(target))
+            self.listbox.see(str(target))
+            self.listbox.focus(str(target))
+            if play:
+                self.play_index(target)
 
     def _show_in_file_manager(self):
         """Öffnet den Dateimanager an der Stelle der ausgewählten Datei."""

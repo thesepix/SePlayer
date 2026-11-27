@@ -20,6 +20,12 @@ Desktop-Musikplayer für **Windows, macOS und Linux** — geschrieben in Python 
   und beim nächsten Start wiederhergestellt
 - **Favoriten:** beliebige Ordner links oben anpinnen („+ pin“ bzw. *Ansicht → … pinnen*),
   per Doppelklick direkt laden
+- **Type-Ahead (Buchstaben tippen):** im Ordnerbaum, in der Titelliste und in den Favoriten springt
+  der getippte Text (case-insensitiv) direkt zum passenden Eintrag; der Puffer wird im Rahmen oben
+  links angezeigt (z. B. „Ordner ‚v‘“)
+- **Suche (Strg+F bzw. Ansicht → Suchen …):** rekursive Suche ab einem Ordner nach Dateiname UND
+  Tags (Titel/Interpret/Album/Genre), max. 500 Treffer, Stop-Taste; Doppelklick auf einen Treffer
+  lädt dessen Ordner im Baum und spielt den Titel ab
 - **Konfigurierbare Spalten:** über *Ansicht → Spalten anpassen …* Felder ein-/ausblenden,
   Reihenfolge per ▲/▼ ändern, Breite setzen — verfügbare Felder: Track-Nr., Disc, Titel, Interpret,
   Album, Bewertung, Dauer, Bitrate, Genre, Jahr, Kommentar, Größe, Format, Datei, Pfad
@@ -49,6 +55,9 @@ Desktop-Musikplayer für **Windows, macOS und Linux** — geschrieben in Python 
 - **Auto-Organize (Umbenennen per Muster)** wie in MediaMonkey: Rechtsklick → „Auto-Organize: umbenennen …",
   Muster z. B. `## - artist - title` (`##` = Track-Nr. zweistellig, `#` = Track-Nr., `<feld>` oder
   Feldname als Wort = Tag-Wert, z. B. `<Artist> - <Title>`), mit Live-Vorschau und Kollisions-Schutz
+- **Titel aus Dateiname übernehmen:** Rechtsklick → „Titel aus Dateiname übernehmen“ setzt den Titel-Tag
+  aus dem Dateinamen (z. B. `02 - Artist - Titel.mp3` → Titel „Titel“) — für alle markierten Dateien auf
+  einmal, inkl. Vorschau der Änderungen; praktisch zum Reparieren überschriebener Titel
 - Mehrfachauswahl auch per **Maus-Ziehen** (Bereich markieren) zusätzlich zu Strg/Shift+Klick
 - **Cover-Reiter** in den Eigenschaften: Cover anzeigen, ersetzen oder entfernen
 - Automatischer Wechsel zum nächsten Titel am Track-Ende
