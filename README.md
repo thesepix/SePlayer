@@ -87,7 +87,7 @@ fertige Dateien pro System:
   SePlayer normal aus dem Programme-Ordner — die DMG wird nicht mehr gebraucht.
   Erster Start nach dem Download: Gatekeeper meldet sich einmalig → Rechtsklick auf die App →
   „Öffnen" (oder Systemeinstellungen → Sicherheit → „Trotzdem öffnen"). Ohne Apple-Developer-
-  Signierung (kostenpflichtig) erscheint dieser eine Hinweis immer.
+  Signierung (kostenpflichtig) erscheint dieser eine Hinweis immer. (Die .app im DMG ist per ad-hoc-Signatur bereits signiert und wird in CI verifiziert.)
 - **Linux:** `SePlayer-linux-vX.Y.Z` — `chmod +x SePlayer-linux-vX.Y.Z && ./SePlayer-linux-vX.Y.Z`
   (braucht glibc, auf den meisten Distributionen vorhanden)
 
@@ -96,6 +96,8 @@ Workflow-Runs, Dateiname enthält die Version: Tag-Name `v1.3.2` bzw. `dev-<comm
 (z. B. `git tag v1.3.2 && git push origin v1.3.2`) veröffentlicht zusätzlich ein **Release** mit allen
 drei versionierten Dateien als Download. Die Version steht außerdem in `seplayer/__init__.py`
 (`__version__`) und wird im Fenstertitel sowie unter *Hilfe → Über* angezeigt.
+
+Ein manuelles „Run workflow“ im Actions-Tab ist **nicht nötig**: Der Workflow „Binaries bauen“ startet bei jedem Push auf `main` und bei jedem Tag `v*` von allein. Fertige Downloads liegen unter **Releases** → https://github.com/thesepix/SePlayer/releases (Dateiname enthält die Version, z. B. `SePlayer-v1.3.28.exe` / `.dmg`).
 
 ## Entwicklung: Voraussetzungen & Start mit Python
 

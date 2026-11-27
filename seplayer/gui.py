@@ -970,7 +970,7 @@ class SePlayerApp:
         try:
             self.engine.load(track["path"])
             self.engine.play()
-        except pygame.error as exc:
+        except Exception as exc:
             messagebox.showwarning(
                 "Wiedergabe nicht möglich",
                 f"{track['filename']}\n\nDieses Format wird nicht unterstützt.\n({exc})")
@@ -1058,7 +1058,7 @@ class SePlayerApp:
                 try:
                     self.engine.seek(fraction * duration)
                     self.play_button.config(text="⏸")
-                except pygame.error:
+                except Exception:
                     pass
 
     def _on_progress_press(self, event):

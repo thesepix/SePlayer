@@ -2,8 +2,16 @@
 import contextlib
 import io
 import os
+import sys
 import tempfile
 import time
+
+# Im gepackten Build (PyInstaller setzt sys.frozen) oeffnet SePlayer kein pygame-Fenster
+# (die GUI ist tkinter) - das SDL-Video-Subsystem wird nur fuer die Event-Queue (Track-Ende)
+# gebraucht. Der Dummy-Video-Treiber macht pygame.display.init() zuverlaessig und verhindert
+# "video system not initialized" in den gepackten .exe/.app (macOS + Windows).
+if getattr(sys, "frozen", False):
+    os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 
 import pygame
 
@@ -50,20 +58,31 @@ class PlaybackEngine:
         self._clock = 0.0
         self._suppress_auto = False
         self._silent = None
+        # Display zuerst: die Event-Queue (END_EVENT) braucht ein initialisiertes
+        # Video-Subsystem. Schlaegt display.init() fehl, Fallback auf Dummy-Treiber.
+        # Alle pygame-Fehler (auch Nicht-pygame.error wie NotImplementedError bei
+        # fehlenden SDL-Libs im gepackten Build) duerfen den App-Start nicht killen.
         try:
             pygame.display.init()
-        except pygame.error:
-            pass
+        except Exception:
+            try:
+                os.environ["SDL_VIDEODRIVER"] = "dummy"
+                pygame.display.init()
+            except Exception:
+                pass
         try:
             pygame.mixer.init()
-        except pygame.error:
+        except Exception:
             try:
                 pygame.display.init()
                 pygame.mixer.init()
-            except pygame.error:
+            except Exception:
                 return
-        pygame.mixer.music.set_endevent(END_EVENT)
-        pygame.mixer.music.set_volume(max(0.0, min(1.0, volume)))
+        try:
+            pygame.mixer.music.set_endevent(END_EVENT)
+            pygame.mixer.music.set_volume(max(0.0, min(1.0, volume)))
+        except Exception:
+            return
         self.available = True
 
     def load(self, path):
@@ -157,7 +176,7 @@ class PlaybackEngine:
             pygame.mixer.music.play()
             try:
                 pygame.event.get()
-            except pygame.error:
+            except Exception:
                 pass
             yield
         finally:
@@ -175,7 +194,7 @@ class PlaybackEngine:
                     self.paused = True
             try:
                 pygame.event.get()  # altes END_EVENT der Stille-WAV verwerfen
-            except pygame.error:
+            except Exception:
                 pass
             if tmp:
                 try:
@@ -194,6 +213,6 @@ class PlaybackEngine:
             for event in pygame.event.get():
                 if event.type == END_EVENT:
                     return True
-        except pygame.error:
+        except Exception:
             pass
         return not pygame.mixer.music.get_busy()

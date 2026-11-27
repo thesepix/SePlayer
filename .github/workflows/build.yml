@@ -44,10 +44,13 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           codesign --force --deep --sign - dist/SePlayer.app
+          codesign --verify --deep --strict dist/SePlayer.app
           rm -rf /tmp/dmg && mkdir -p /tmp/dmg
           cp -R dist/SePlayer.app /tmp/dmg/
           ln -s /Applications /tmp/dmg/Applications
           hdiutil create -volname SePlayer -srcfolder /tmp/dmg -ov -format UDZO dist/SePlayer.dmg
+          xattr -cr dist/SePlayer.dmg
+          codesign --force --sign - dist/SePlayer.dmg || echo "DMG-Signierung fehlgeschlagen (nicht kritisch)"
       - name: Linux -> Dateiname setzen
         if: runner.os == 'Linux'
         run: |
