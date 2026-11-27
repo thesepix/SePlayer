@@ -90,13 +90,5 @@ jobs:
           gh api "repos/${{ github.repository }}/releases?per_page=100" \
             --jq --arg cur "$CURRENT" '.[] | select(.tag_name != $cur) | .id' \
             | while read -r id; do
-                gh api -X DELETE "repos/${{ github.repository }}/releases/$id" || true
+                echo "lösche Release $id"; gh api -X DELETE "repos/${{ github.repository }}/releases/$id" || echo "delete $id fehlgeschlagen"
               done
-      - name: Alte Releases aufraeumen (nur aktuelles Tag behalten)
-        if: startsWith(github.ref, 'refs/tags/')
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          for t in $(gh release list --limit 50 --json tagName --jq '.[].tagName' | grep -v "^${{ github.ref_name }}$" || true); do
-            gh api -X DELETE "repos/${{ github.repository }}/releases/tags/$t" || true
-          done
