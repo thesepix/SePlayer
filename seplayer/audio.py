@@ -22,7 +22,7 @@ def _silent_wav_bytes():
             w.setnchannels(1)
             w.setsampwidth(1)
             w.setframerate(8000)
-            w.writeframes(b"\x80" * 400)
+            w.writeframes(b"\x80" * 160)
         _SILENT_WAV = buf.getvalue()
     return _SILENT_WAV
 
@@ -155,6 +155,10 @@ class PlaybackEngine:
                 fh.write(_silent_wav_bytes())
             pygame.mixer.music.load(tmp)
             pygame.mixer.music.play()
+            try:
+                pygame.event.get()
+            except pygame.error:
+                pass
             yield
         finally:
             self._suppress_auto = False
@@ -169,6 +173,10 @@ class PlaybackEngine:
                     self._offset = pos
                     pygame.mixer.music.pause()
                     self.paused = True
+            try:
+                pygame.event.get()  # altes END_EVENT der Stille-WAV verwerfen
+            except pygame.error:
+                pass
             if tmp:
                 try:
                     os.remove(tmp)
