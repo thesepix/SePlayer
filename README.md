@@ -23,6 +23,8 @@ Desktop-Musikplayer für **Windows, macOS und Linux** — geschrieben in Python 
 - **Type-Ahead (Buchstaben tippen):** im Ordnerbaum, in der Titelliste und in den Favoriten springt
   der getippte Text (case-insensitiv) direkt zum passenden Eintrag; der Puffer wird im Rahmen oben
   links angezeigt (z. B. „Ordner ‚v‘“)
+  (Reihenfolge: Geschwister des aktuellen Knotens → alle geladenen Baumknoten → direkt im
+  Dateisystem des aktuellen Ordners; nicht aufklappte Ordner werden dafür automatisch geladen)
 - **Suche (Strg+F bzw. Ansicht → Suchen …):** rekursive Suche ab einem Ordner nach Dateiname UND
   Tags (Titel/Interpret/Album/Genre), max. 500 Treffer, Stop-Taste; Doppelklick auf einen Treffer
   lädt dessen Ordner im Baum und spielt den Titel ab

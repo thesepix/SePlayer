@@ -463,6 +463,10 @@ class SePlayerApp:
         # welches Widget den Fokus hat (reine Widget-Bindings wurden auf manchen Systemen
         # vom Treeview-Klassen-Binding verdraengt). Textfelder und Dialoge sind ausgenommen.
         self.root.bind_all("<KeyPress>", self._on_global_key, add="+")
+        # zusaetzlich direkt auf die Widgets (falls bind_all auf einem System nicht feuert);
+        # Doppelverarbeitung wird ueber die Event-Serial verhindert
+        for w in (self.tree, self.listbox, self.fav_list):
+            w.bind("<KeyPress>", self._on_global_key, add="+")
         self.fav_list.bind("<ButtonRelease-1>", self._on_fav_select)
         self.listbox.bind("<<TreeviewSelect>>", lambda _e: self._update_cover())
         self.listbox.bind("<Double-1>", self._on_play_selected)
@@ -647,10 +651,13 @@ class SePlayerApp:
         in der Titelliste -> naechster Titel, in den Favoriten -> naechster Favorit.
         Textfelder (Inline-Editor) und Dialoge (andere Toplevels) werden nicht abgefangen.
         """
+        if getattr(self, "_last_key_serial", None) == getattr(event, "serial", None):
+            return  # derselbe Tastendruck kam schon ueber das Widget-Binding herein
+        self._last_key_serial = getattr(event, "serial", None)
         focus_w = self.root.focus_get()
         if focus_w is None:
-            return
-        if focus_w.winfo_toplevel() is not self.root:
+            focus_w = self.tree  # kein Fokus gemeldet -> als Ordnerbaum behandeln
+        elif focus_w.winfo_toplevel() is not self.root:
             return  # Dialog offen
         if isinstance(focus_w, (tk.Entry, ttk.Entry, tk.Text, tk.Spinbox,
                                 ttk.Combobox, ttk.Spinbox)):
@@ -699,24 +706,26 @@ class SePlayerApp:
         start = self.tree.focus()
         if not start and self.tree.selection():
             start = self.tree.selection()[0]
+        if start:
+            self._ensure_populated(start)
         target = None
         if start:
-            # 1) Geschwister des aktuellen Knotens zuerst (typischer Fall:
-            #    grosser Ordner mit vielen Unterordnern -> naechster Unterordner)
-            parent = self.tree.parent(start)
-            siblings = list(self.tree.get_children(parent))
-            if start in siblings:
-                idx = siblings.index(start)
-                ordered = siblings[idx + 1:] + siblings[:idx + 1]
-            else:
-                ordered = siblings
-            for sib in ordered:
-                if (self.tree.item(sib, "text") or "").lower().startswith(needle):
-                    target = sib
-                    break
-            # 2) danach die Kinder des aktuellen Knotens
+            # 1) KINDER des aktuellen Knotens zuerst: wer in einem grossen Ordner ist,
+            #    will zu dessen Unterordnern springen (z. B. 'v' -> 'Videos')
+            target = self._find_typeahead(start, needle)
+            # 2) danach die Geschwister des aktuellen Knotens (mit Wrap-Around)
             if target is None:
-                target = self._find_typeahead(start, needle)
+                parent = self.tree.parent(start)
+                siblings = list(self.tree.get_children(parent))
+                if start in siblings:
+                    idx = siblings.index(start)
+                    ordered = siblings[idx + 1:] + siblings[:idx + 1]
+                else:
+                    ordered = siblings
+                for sib in ordered:
+                    if (self.tree.item(sib, "text") or "").lower().startswith(needle):
+                        target = sib
+                        break
         if target is None:
             for root in self.tree.get_children(""):
                 if root == start:
@@ -746,7 +755,10 @@ class SePlayerApp:
             if not self.tree.item(target, "open"):
                 self.tree.item(target, open=True)
         if target is None:
-            # Fallback: direkt im Dateisystem des aktuellen Ordners suchen
+            # 3) Breitensuche ueber ALLE geladenen Baumknoten (mit Wrap-Around um start)
+            target = self._find_anywhere(needle, start)
+        if target is None:
+            # 4) Fallback: direkt im Dateisystem des aktuellen Ordners suchen
             base = getattr(self, "folder", None)
             if not base:
                 selection = self.tree.selection()
@@ -798,6 +810,39 @@ class SePlayerApp:
                 self.fav_list.see(i)
                 return
 
+    def _ensure_populated(self, node):
+        """Laedt die Kinder eines Knotens, wenn nur der Platzhalter '\u2026' drin steht.
+
+        (Programmatisches open=True loest KEIN <<TreeviewOpen>> aus - ohne das wuerden
+        per Favorit/Suche angesprungene Ordner im Baum nie ihre Unterordner zeigen.)
+        """
+        children = self.tree.get_children(node)
+        if children and self.tree.item(children[0], "values")[0] == "":
+            values = self.tree.item(node, "values")
+            path = values[0] if values else ""
+            if path and os.path.isdir(path):
+                self.tree.delete(children[0])
+                if not self._populate_node(node, path):
+                    self.tree.insert(node, "end", text="(kein Zugriff)", values=("",))
+
+    def _find_anywhere(self, needle, start):
+        """Breitensuche ueber alle geladenen Knoten; beginnt nach `start` (Wrap-Around)."""
+        all_nodes = []
+        stack = list(self.tree.get_children(""))
+        while stack:
+            n = stack.pop(0)
+            all_nodes.append(n)
+            stack.extend(self.tree.get_children(n))
+        if start in all_nodes:
+            idx = all_nodes.index(start)
+            ordered = all_nodes[idx + 1:] + all_nodes[:idx + 1]
+        else:
+            ordered = all_nodes
+        for n in ordered:
+            if (self.tree.item(n, "text") or "").lower().startswith(needle):
+                return n
+        return None
+
     # ---------- Favoriten ----------
 
     def _refresh_favorites(self):
@@ -838,9 +883,15 @@ class SePlayerApp:
             entries = sorted(os.listdir(path))
         except OSError:
             return False
+        existing = set()
+        for c in self.tree.get_children(node):
+            v = self.tree.item(c, "values")
+            if v:
+                existing.add(v[0])
         for entry in entries:
             full = os.path.join(path, entry)
-            if os.path.isdir(full) and not (os.name != "nt" and entry.startswith(".")):
+            if (os.path.isdir(full) and not (os.name != "nt" and entry.startswith("."))
+                    and full not in existing):
                 self._insert_dir(node, full)
         return True
 
@@ -905,6 +956,7 @@ class SePlayerApp:
         values = self.tree.item(selection[0], "values")
         path = values[0] if values else ""
         if path and os.path.isdir(path):
+            self._ensure_populated(selection[0])
             self.load_folder(path)
 
     def _ask_folder(self):
